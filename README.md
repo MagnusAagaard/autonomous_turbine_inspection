@@ -34,6 +34,7 @@ Build the PX4-Autopilot SITL firmware and run the Gazebo environment
 ```
 cd ~/PX4-Autopilot
 DONT_RUN=1 make px4_sitl_default gazebo
+make px4_sitl_default gazebo
 ```
 Add the following lines to '.bashrc'
 ```
@@ -93,6 +94,18 @@ catkin build
 source devel/setup.bash
 ```
 
+### Setup custom UAV (SDU drone)
+To launch the PX4 SITL simulation with the SDU drone, the model file has to be linked to PX4.
+A custom UAV requires a Gazebo model (model.config and <custom_uav_name>.sdf) and an airframe file under /PX4-Autopilot/ROMFS/px4mu_common/init.d-posix/
+
+Symlink the airframe, mixer and model files with the PX4 folder:
+```
+ln -s /home/$USER/catkin_ws/src/autonomous_turbine_inspection/init.d-posix/* /home/$USER/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/
+ln -s /home/$USER/catkin_ws/src/autonomous_turbine_inspection/mixers/* /home/$USER/PX4-Autopilot/ROMFS/px4fmu_common/mixers/
+ln -s /home/$USER/catkin_ws/src/autonomous_turbine_inspection/models/* /home/$USER/PX4-Autopilot/Tools/sitl_gazebo/models/
+```
+
+
 ### Launching the PX4 SITL with ROS wrapper
 To run the simulation wrapped in ROS:
 ```
@@ -101,6 +114,10 @@ roslaunch px4 posix_sitl.launch
 And with MAVROS:
 ```
 roslaunch px4 mavros_posix_sitl.launch
+```
+To run with SDU drone:
+```
+roslaunch autonomous_turbine_inspection posix.launch vehicle:=sdu_drone env:=ocean
 ```
 
 # Package usage
