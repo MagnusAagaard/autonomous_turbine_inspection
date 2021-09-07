@@ -72,7 +72,7 @@ rosdep install --from-paths src --ignore-src -y
 ```
 Install GeographicLib datasets
 ```
-./src/mavros/mavros/scripts/install_geographiclib_datasets.sh
+sudo ./src/mavros/mavros/scripts/install_geographiclib_datasets.sh
 ```
 We are now ready to build
 ```
