@@ -1,13 +1,13 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>autonomous_turbine_inspection</name>
-  <version>0.0.0</version>
+  <version>0.0.1</version>
   <description>The autonomous_turbine_inspection package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
   <!-- <maintainer email="jane.doe@example.com">Jane Doe</maintainer> -->
-  <maintainer email="magnus@todo.todo">magnus</maintainer>
+  <maintainer email="magnus_aagaard@hotmail.com">Magnus Aagaard</maintainer>
 
 
   <!-- One license tag required, multiple allowed, one license per tag -->
@@ -21,11 +21,7 @@
   <!-- Example: -->
   <!-- <url type="website">http://wiki.ros.org/autonomous_turbine_inspection</url> -->
 
-
-  <!-- Author tags are optional, multiple are allowed, one per tag -->
-  <!-- Authors do not have to be maintainers, but could be -->
-  <!-- Example: -->
-  <!-- <author email="jane.doe@example.com">Jane Doe</author> -->
+  <author email="magnus_aagaard@hotmail.com">Magnus Aagaard</author>
 
 
   <!-- The *depend tags are used to specify dependencies -->
