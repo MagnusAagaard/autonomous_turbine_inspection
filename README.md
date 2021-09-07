@@ -83,6 +83,16 @@ And remember to source the workspace..
 source devel/setup.bash
 ```
 
+## Configure this package
+The workspace should now be set up correctly and this package can be cloned:
+```
+cd ./src
+git clone https://github.com/MagnusAagaard/autonomous_turbine_inspection.git
+cd ..
+catkin build
+source devel/setup.bash
+```
+
 ### Launching the PX4 SITL with ROS wrapper
 To run the simulation wrapped in ROS:
 ```
@@ -92,3 +102,6 @@ And with MAVROS:
 ```
 roslaunch px4 mavros_posix_sitl.launch
 ```
+
+# Package usage
+The usage of this package is described here..
