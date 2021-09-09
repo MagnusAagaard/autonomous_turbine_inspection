@@ -5,4 +5,4 @@
 # @type Hexarotor x
 #
 
-sh /etc/init.d-posix/airframes/6014_sdu_drone
+. ${R}etc/init.d-posix/airframes/6014_sdu_drone
