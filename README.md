@@ -100,7 +100,7 @@ A custom UAV requires a Gazebo model (model.config and <custom_uav_name>.sdf) an
 
 Symlink the airframe, mixer and model files with the PX4 folder:
 ```
-ln -s /home/$USER/catkin_ws/src/autonomous_turbine_inspection/init.d-posix/* /home/$USER/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/
+ln -s /home/$USER/catkin_ws/src/autonomous_turbine_inspection/init.d-posix/* /home/$USER/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/airframes
 ln -s /home/$USER/catkin_ws/src/autonomous_turbine_inspection/mixers/* /home/$USER/PX4-Autopilot/ROMFS/px4fmu_common/mixers/
 ln -s /home/$USER/catkin_ws/src/autonomous_turbine_inspection/models/* /home/$USER/PX4-Autopilot/Tools/sitl_gazebo/models/
 ```
