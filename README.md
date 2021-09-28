@@ -93,6 +93,10 @@ cd ..
 catkin build
 source devel/setup.bash
 ```
+In order to run correctly there are some pip dependencies that has to be installed as well. This can be done using the requirements.txt file
+```
+pip3 install -r requirements.txt
+```
 
 ### Setup custom UAV (SDU drone)
 To launch the PX4 SITL simulation with the SDU drone, the model file has to be linked to PX4.
