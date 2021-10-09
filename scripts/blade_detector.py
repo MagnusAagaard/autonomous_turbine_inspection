@@ -11,7 +11,7 @@ class BladeDetector:
         # Initialisation
         self.save_result = save_result
         if self.save_result:
-            self.save_path = './output/' + img_path.split('/')[-1]
+            self.save_path = './scripts/output/' + img_path.split('/')[-1]
         self.img = cv2.imread(img_path)
         #self.img = cv2.resize(self.img, (1920, 1080))
         self.gray_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
@@ -46,6 +46,7 @@ class BladeDetector:
         # Draw lines
         tmp_img = self.img.copy()
         for i in range(self.lines.shape[0]):
+            # Lines are in (x1, y1, x2, y2, width)
             pt1 = (int(self.lines[i, 0]), int(self.lines[i, 1]))
             pt2 = (int(self.lines[i, 2]), int(self.lines[i, 3]))
             width = self.lines[i, 4]
@@ -68,7 +69,7 @@ class BladeDetector:
         # Fill mask with large contours
         cv2.drawContours(masked_image_zero, contours_to_keep, -1, 255, -1)
         # Use the new mask
-        masked_image = masked_image_zero
+        self.masked_image = masked_image_zero
         if self.save_result:
             cv2.imwrite(self.save_path[:-4] + '_contour_mask.jpg', masked_image)
         # Filter using the new mask
@@ -77,7 +78,7 @@ class BladeDetector:
             pt1 = (int(self.lines[i, 0]), int(self.lines[i, 1]))
             pt2 = (int(self.lines[i, 2]), int(self.lines[i, 3]))
             width = self.lines[i, 4]
-            if masked_image[pt1[1], pt1[0]] != 0 and masked_image[pt2[1], pt2[0]] != 0:
+            if self.masked_image[pt1[1], pt1[0]] != 0 and self.masked_image[pt2[1], pt2[0]] != 0:
                 cv2.line(self.img, pt1, pt2, (0,255,0), int(np.ceil(width / 2)))
                 self.filtered_lines.append(self.lines[i])
         print("Number of unfiltered lines: {}".format(len(self.lines)))
@@ -117,16 +118,16 @@ class BladeDetector:
         mean lengths, intersections and centroid.
 
         @type   lines: numpy array of shape (3,4)
-        @param  lines: Each row is 4 numbers, y1, x1, y2, x2
+        @param  lines: Each row is 4 numbers, x1, y1, x2, y2
         @rtype:   numpy array of shape (,5)
         @return:  the turbine model parameters
         """ 
         lines_homogenous = []
         intersections = []
         for l in lines:
-            # Transform each point (y,x) to homogenous coordinates (x,y,1)
-            p1 = np.flip(np.append(1,l[:2]))
-            p2 = np.flip(np.append(1,l[2:]))
+            # Transform each point (x,y) to homogenous coordinates (x,y,1)
+            p1 = np.append(l[:2],1)
+            p2 = np.append(l[2:],1)
             # Calculate lines in homogenous coordinates
             lines_homogenous.append(np.cross(p1,p2))
         lines_homogenous = np.array(lines_homogenous)
@@ -138,15 +139,40 @@ class BladeDetector:
         intersections.append(np.cross(lines_homogenous[0], lines_homogenous[2]))
         intersections = np.array(intersections)
         # Back to cartesian space (x,y)
-        intersections = np.array([intersections[i,:2] / intersections[i,2] for i in range(len(intersections))])
-        img_pts = np.fliplr(intersections).astype(int)
+        intersections = np.array([intersection[:2] / intersection[2] for intersection in intersections])
+        #img_pts = intersections.astype(int)
         # Draw blue dots on intersection points
-        for pt in img_pts:
-            cv2.circle(self.img, tuple(pt), 3, (255,0,0), thickness=3)
-        # Calculate centroid of intersections
-        centroid = np.sum(intersections, axis=0)/len(intersections)
-        # Red dots on centroids
-        cv2.circle(self.img, tuple(np.flip(centroid).astype(int)), 3, (0,0,255),thickness=3)
+        #for pt in img_pts:
+        #    cv2.circle(self.img, tuple(pt), 3, (255,0,0), thickness=-1)
+        # Calculate centroid of intersections (x,y) and round to int
+        centroid = (np.sum(intersections, axis=0)/len(intersections)).astype(int)
+        # Red dots on centroids if inside mask
+        if centroid[0] >= 0 and centroid[1] >= 0 and centroid[1] < self.masked_image.shape[0] and centroid[0] < self.masked_image.shape[1]:
+            if self.masked_image[centroid[1], centroid[0]] != 0:
+                cv2.circle(self.img, tuple(centroid), 4, (0,0,255), thickness=-1)
+                # Extend line from centroid to extreme left and right point
+                #for i in range(len(lines_homogenous)):
+                #    # Avoid dividing by 0
+                #    if lines_homogenous[i,2] != 0:
+                #        lines_homogenous[i,:] /= lines_homogenous[i,2]
+                # Lines are a,b,c: ax+by+c = 0
+                # y = -(a/b)x + c/b
+                start_pt = tuple(centroid)
+                x, y, w, h = cv2.boundingRect(self.masked_image)
+                left = (x, np.argmax(self.masked_image[:, x]))
+                right = (x+w-1, np.argmax(self.masked_image[:, x+w-1]))
+                #top = (np.argmax(self.masked_image[y, :]), y)
+                #bottom = (np.argmax(self.masked_image[y+h-1, :]), y+h-1)
+                cv2.circle(self.img, left, 8, (0, 50, 255), -1)
+                cv2.circle(self.img, right, 8, (0, 255, 255), -1)
+                #cv2.circle(self.img, top, 8, (255, 50, 0), -1)
+                #cv2.circle(self.img, bottom, 8, (255, 255, 0), -1)
+                end_pt = left
+                cv2.line(self.img, start_pt, end_pt, color=(255,255,0), thickness=3)
+                end_pt = right
+                cv2.line(self.img, start_pt, end_pt, color=(255,255,0), thickness=3)
+            else:
+                cv2.circle(self.img, tuple(centroid), 4, (255,0,0),thickness=-1)
         # Extend lines from centroid to edge of mask
         # Calculate length of each line,, mean length, angle between lines and we have what we need!
 
@@ -154,8 +180,8 @@ class BladeDetector:
 
 
 def main():
-    bd = BladeDetector(img_path='./image_data/offshore_wind_turbine.jpg', save_result=True)
-    bd.get_mask('./image_data/annotated_wind_turbine.jpg')
+    bd = BladeDetector(img_path='./scripts/image_data/offshore_wind_turbine.jpg', save_result=True)
+    bd.get_mask('./scripts/image_data/annotated_wind_turbine.jpg')
     bd.detect()
 
 if __name__ == "__main__":
