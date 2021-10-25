@@ -7,6 +7,19 @@ First ensure ROS Melodic is installed: ```sudo apt-get install ros-melodic-deskt
 
 The package builds on top of PX4 and MAVROS packages, which needs to be installed and configured.
 
+## g2opy setup
+This package uses Graph Optimization and it is depending on the g2opy library. A forked version of this is used, where modifications have been made such that it works with current Python version etc.
+
+First install dependencies for the g2opy library:
+```
+sudo apt-get install cmake libeigen3-dev libsuitesparse-dev qtdeclarative5-dev qt5-qmake libqglviewer-headers
+```
+Next init and update submodules recursively
+```
+git submodule update --init --recursive
+```
+
+
 ## PX4 setup
 
 Install dependencies:
@@ -24,20 +37,20 @@ For convenience when working with ROS also install the Python-based catkin tools
 sudo apt install python-catkin-tools
 ```
 Then clone the PX4 firmware from Github and checkout to version 1.12.1 (stable release):
-```
+```shell script
 git clone https://github.com/PX4/PX4-Autopilot
 cd ~/PX4-Autopilot
 git checkout v1.12.1
 git submodule update --init --recursive
 ```
 Build the PX4-Autopilot SITL firmware and run the Gazebo environment
-```
+```shell script
 cd ~/PX4-Autopilot
 DONT_RUN=1 make px4_sitl_default gazebo
 make px4_sitl_default gazebo
 ```
 Add the following lines to '.bashrc'
-```
+```shell script
 source /home/$USER/PX4-Autopilot/Tools/setup_gazebo.bash /home/$USER/PX4-Autopilot /home/$USER/PX4-Autopilot/build/px4_sitl_default
 export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:/home/$USER/PX4-Autopilot
 export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:/home/$USER/PX4-Autopilot/Tools/sitl_gazebo
@@ -46,12 +59,12 @@ export ROS_PACKAGE_PATH=$ROS_PACKAGE_PATH:/home/$USER/PX4-Autopilot/Tools/sitl_g
 ## Workspace/MAVROS setup
 The workspace has to be setup properly in order to link correctly to MAVROS and PX4.\
 First, make sure 'wstool', 'rosinstall' and 'catkin_tools' are availble. Also install MAVROS.
-```
+```shell script
 sudo apt-get install python-catkin-tools python-rosinstall-generator -y
 sudo apt install ros-noetic-mavros ros-noetic-mavros-extras -y
 ```
 Then create and init a catkin workspace
-```
+```shell script
 mkdir -p ~/catkin_ws/src
 cd ~/catkin_ws
 catkin init
@@ -66,7 +79,7 @@ Install MAVROS from source using either released/stable version
 rosinstall_generator --upstream mavros | tee -a /tmp/mavros.rosinstall
 ```
 Create workspace & deps
-```
+```shell script
 wstool merge -t src /tmp/mavros.rosinstall
 wstool update -t src -j4
 rosdep install --from-paths src --ignore-src -y
@@ -86,7 +99,7 @@ source devel/setup.bash
 
 ## Configure this package
 The workspace should now be set up correctly and this package can be cloned:
-```
+```shell script
 cd ./src
 git clone https://github.com/MagnusAagaard/autonomous_turbine_inspection.git
 cd ..
@@ -103,7 +116,7 @@ To launch the PX4 SITL simulation with the SDU drone, the model file has to be l
 A custom UAV requires a Gazebo model (model.config and <custom_uav_name>.sdf) and an airframe file under /PX4-Autopilot/ROMFS/px4mu_common/init.d-posix/
 
 Symlink the airframe, mixer and model files with the PX4 folder:
-```
+```shell script
 ln -s /home/$USER/catkin_ws/src/autonomous_turbine_inspection/init.d-posix/* /home/$USER/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/airframes
 ln -s /home/$USER/catkin_ws/src/autonomous_turbine_inspection/mixers/* /home/$USER/PX4-Autopilot/ROMFS/px4fmu_common/mixers/
 ln -s /home/$USER/catkin_ws/src/autonomous_turbine_inspection/models/* /home/$USER/PX4-Autopilot/Tools/sitl_gazebo/models/
