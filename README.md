@@ -18,7 +18,16 @@ Next init and update submodules recursively
 ```
 git submodule update --init --recursive
 ```
-
+Now build the g2opy library:
+```shell script
+cd g2opy
+mkdir build
+cd build
+cmake ..
+make -j8
+cd ..
+sudo python3 setup.py install
+```
 
 ## PX4 setup
 
