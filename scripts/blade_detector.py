@@ -211,7 +211,8 @@ class BladeDetector:
                 start_pt = tuple(centroid)
                 end_pt_left = extreme_pts[0]
                 end_pt_right = extreme_pts[1]
-                end_pt_bot = (1244,1563)
+                #end_pt_bot = (1244,1563)
+                end_pt_bot = (820, 530)
                 # This is actually top, but keep name bot for convenience..
                 #end_pt_bot = extreme_pts[2]
                 parameter_dict["line_endpoints"] = [end_pt_left, end_pt_right, end_pt_bot]
@@ -299,7 +300,7 @@ class BladeDetector:
 
 
 def main():
-    bd = BladeDetector(img_path='./scripts/image_data/offshore_wind_turbine.jpg', save_result=True)
+    bd = BladeDetector(img_path='./scripts/image_data/gazebo.png', save_result=True)
     bd.get_mask('./scripts/image_data/offshore_wind_turbine.jpg', './scripts/image_data/annotated_wind_turbine.jpg')
     bd.detect()
 

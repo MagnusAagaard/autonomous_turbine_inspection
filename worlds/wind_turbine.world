@@ -24,12 +24,80 @@
       <magnetic_field>6.0e-6 2.3e-5 -4.2e-5</magnetic_field>
     </physics>
 
-    <!-- Global light source -->
-    <light type="directional" name="sun">
-      <pose>40 30 300 0 0 0</pose>
-      <diffuse>1 1 1 1</diffuse>
+    <!-- Global light source in all directions -->
+    <!-- x direction -->
+    <light type="directional" name="sun1">
+      <pose>-100 0 10 0 0 0</pose>
+      <diffuse>.6 .6 .6 1</diffuse>
       <specular>.7 .7 .7 1</specular>
-      <direction>-0.2 0.2 -1.2</direction>
+      <direction>1 0 0</direction>
+      <cast_shadows>1</cast_shadows>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+    </light>
+    <light type="directional" name="sun2">
+      <pose>100 0 10 0 0 0</pose>
+      <diffuse>.6 .6 .6 1</diffuse>
+      <specular>.7 .7 .7 1</specular>
+      <direction>-1 0 0</direction>
+      <cast_shadows>1</cast_shadows>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+    </light>
+    <!-- y direction -->
+    <light type="directional" name="sun3">
+      <pose>0 -100 10 0 0 0</pose>
+      <diffuse>.6 .6 .6 1</diffuse>
+      <specular>.7 .7 .7 1</specular>
+      <direction>0 1 0</direction>
+      <cast_shadows>1</cast_shadows>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+    </light>
+    <light type="directional" name="sun4">
+      <pose>0 100 10 0 0 0</pose>
+      <diffuse>.6 .6 .6 1</diffuse>
+      <specular>.7 .7 .7 1</specular>
+      <direction>0 -1 0</direction>
+      <cast_shadows>1</cast_shadows>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+    </light>
+    <!-- z direction -->
+    <light type="directional" name="sun5">
+      <pose>0 0 100 0 0 0</pose>
+      <diffuse>.6 .6 .6 1</diffuse>
+      <specular>.7 .7 .7 1</specular>
+      <direction>0 0 -1</direction>
+      <cast_shadows>1</cast_shadows>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+    </light>
+    <light type="directional" name="sun6">
+      <pose>0 0 -100 0 0 0</pose>
+      <diffuse>.6 .6 .6 1</diffuse>
+      <specular>.7 .7 .7 1</specular>
+      <direction>0 0 1</direction>
       <cast_shadows>1</cast_shadows>
       <attenuation>
         <range>1000</range>
