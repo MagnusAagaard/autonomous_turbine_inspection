@@ -1,6 +1,6 @@
 # autonomous_turbine_inspection
 
-ROS package for performing autonomous wind turbine inspections. The package is build for ROS melodic on Ubuntu 18.04
+ROS package for performing autonomous wind turbine inspections. The package is build for ROS melodic on Ubuntu 18.04 with Python 3.6.9
 
 # Setup
 First ensure ROS Melodic is installed: ```sudo apt-get install ros-melodic-desktop-full```
