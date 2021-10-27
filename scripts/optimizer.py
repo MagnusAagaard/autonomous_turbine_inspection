@@ -46,8 +46,9 @@ def main():
     # Main
     print("Hello world!")
     # Extract frames from video (or images in the beginning)
-    # Estimate wind turbine model (2D image points??) and project them to 3D? Should be from 3D --> 2D...
-    # which means that the output from the CNN should be 3D locations..??
+    # Estimate wind turbine model (2D image points) from internal wind turbine model through the current estimated pose of the camera
+    # Compare this estimated model with the output from the CNN
+    # Add these to the optimizer and run optimization
 
 if __name__ == "__main__":
     main()
