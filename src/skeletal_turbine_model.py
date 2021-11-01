@@ -97,13 +97,11 @@ class SkeletalTurbineModel:
 
     def get_rotation_matrix_from_world_to_camera_frame(self):
         # Rotation from world frame to camera frame
+        #Rz = self.get_rotation_matrix(axis='z', angle=np.pi/2)
         #Rx = self.get_rotation_matrix(axis='x', angle=np.pi/2)
-        #Ry = self.get_rotation_matrix(axis='y', angle=np.pi)
+        #print(Rx @ Rz)
         #return Rx @ Ry
-        # Equivalent: cam x is in world -x, cam y is in world z, cam z is in world y
-        #R = np.array([[-1,0,0],[0,0,1],[0,1,0]])
-
-        # cam x is in world -y, cam y is in world -z, cam z is in world x
+        # Equivalent: cam x is in world -y, cam y is in world -z, cam z is in world x
         R = np.array([[0, -1, 0], [0,0,-1], [1,0,0]])
         return R
 
