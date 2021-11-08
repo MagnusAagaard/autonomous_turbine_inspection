@@ -4,9 +4,10 @@ import cv2
 # Plotting
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from utils import get_rotation_matrix, get_rotation_matrix_from_world_to_camera_frame
 
 class SkeletalTurbineModel:
-    def __init__(self, c=(5,0), h=1, omega=0, r=1, phi=0, b=1):
+    def __init__(self, c=(0,0), h=1, omega=0, r=1, phi=0, b=1):
         # Init
         self.c = c          # (x,y) location of turbine tower base
         self.h = h          # Height of turbine tower
@@ -36,13 +37,13 @@ class SkeletalTurbineModel:
         Mh = np.diag((1,1,self.h))
         self.point_model[1] = pc + Mh @ self.default_point_model[1] # Top of turbine tower
         Mr = np.diag((self.r,1,1))
-        R_omega = self.get_rotation_matrix(axis='z', angle=self.omega)
+        R_omega = get_rotation_matrix(axis='z', angle=self.omega)
         self.point_model[2] = pc + R_omega @ Mr @ Mh @ self.default_point_model[2]    # Turbine hub (centre of blades)
         # Turbine blade tips
         Mb = np.diag((1,1,self.b))
         for i in range(3):
             phi = self.phi + i*2/3*np.pi
-            R_phi = self.get_rotation_matrix(axis='x', angle=phi)
+            R_phi = get_rotation_matrix(axis='x', angle=phi)
             self.point_model[i+3] = pc + R_omega @ Mr @ (R_phi @ Mb @ (self.default_point_model[i+3] - self.default_point_model[1]) + Mh @ self.default_point_model[1])
 
     def update_line_model(self):
@@ -56,21 +57,6 @@ class SkeletalTurbineModel:
         self.line_model[3,1] = self.point_model[4]
         self.line_model[4,0] = self.point_model[2]
         self.line_model[4,1] = self.point_model[5]
-
-    def get_rotation_matrix(self, axis, angle):
-        # Directory containing indicies for cos, sin, -sin, cos
-        indicies = {'x' : [[1,1], [2,1], [1,2], [2,2]],
-                    'y' : [[0,0], [0,2], [2,0], [2,2]],
-                    'z' : [[0,0], [1,0], [0,1], [1,1]]}
-        if axis not in indicies.keys():
-            print('Tried to get rotation matrix for axis: {}'.format(axis))
-        R = np.diag((1,1,1)).astype('float32')
-        inds = indicies.get(axis)
-        R[inds[0][0], inds[0][1]] = np.cos(angle)
-        R[inds[1][0], inds[1][1]] = np.sin(angle)
-        R[inds[2][0], inds[2][1]] = -np.sin(angle)
-        R[inds[3][0], inds[3][1]] = np.cos(angle)
-        return R
 
     def plot_model(self):
         fig = plt.figure()
@@ -92,36 +78,22 @@ class SkeletalTurbineModel:
         set_axes_equal(ax)
         plt.show()
 
-    def dist_between_points(self, p1, p2):
-        print(np.sqrt((p2[0]-p1[0])*(p2[0]-p1[0]) + (p2[1]-p1[1])*(p2[1]-p1[1]) + (p2[2]-p1[2])*(p2[2]-p1[2])))
-
-    def get_rotation_matrix_from_world_to_camera_frame(self):
-        # Rotation from world frame to camera frame
-        #Rz = self.get_rotation_matrix(axis='z', angle=np.pi/2)
-        #Rx = self.get_rotation_matrix(axis='x', angle=np.pi/2)
-        #print(Rx @ Rz)
-        #return Rx @ Ry
-        # Equivalent: cam x is in world -y, cam y is in world -z, cam z is in world x
-        R = np.array([[0, -1, 0], [0,0,-1], [1,0,0]])
-        return R
-
-    def project_model_to_image(self):
+    def project_model_to_image(self, img=None, K=None, cam_pose=None):
         # Project the model into image coordinate system (2D)
-        img_h = 480
-        img_w = 640
-        img = np.ones((img_h, img_w, 3), dtype=np.uint8)*255
+        if img is None:
+            img_h = 480
+            img_w = 640
+            img = np.ones((img_h, img_w, 3), dtype=np.uint8)*255
         # Intrinsic parameters:
-        K = np.array([[277.191356, 0.0, 320.5], 
+        if K is None:
+            K = np.array([[277.191356, 0.0, 320.5], 
                      [0.0, 277.191356, 240.5], 
                      [0.0, 0.0, 1.0]])
-        # Get transform from world frame to camera frame
-        Rex = self.get_rotation_matrix_from_world_to_camera_frame()
-        # Camera pose/extrinsic parameters [R|t]:
-        R = self.get_rotation_matrix(axis='z', angle=np.pi/4)
-        t = np.array([0,0,2])
-        # Cam pose is transformed from world frame to camera frame
-        # and the camera pose itself is then applied
-        cam_pose = np.column_stack((Rex @ R, -Rex @ R @ t))
+        # Extrensic parameters
+        if cam_pose is None:
+            R = np.array([[1,0,0],[0,1,0],[0,0,1]])
+            t = np.array([0,0,1])
+            cam_pose = np.column_stack((Rex @ R, -Rex @ R @ t))
         # Projection matrix P = K [R|t]
         P = K @ cam_pose
         # Project to 2D
@@ -150,8 +122,8 @@ class SkeletalTurbineModel:
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[3,0]), int(img_pts[3,1])), (255,0,0), 2)
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[4,0]), int(img_pts[4,1])), (255,0,0), 2)
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[5,0]), int(img_pts[5,1])), (255,0,0), 2)
-        cv2.imshow('Projected point model', img)
-        cv2.waitKey(0)
+        #cv2.imshow('Projected point model', img)
+        #cv2.waitKey(0)
         
 
 def set_axes_equal(ax):
@@ -188,7 +160,7 @@ def main():
     stm = SkeletalTurbineModel()
     stm.project_model_to_image()
     #stm.plot_model()
-    #stm.dist_between_points(stm.point_model[2],stm.point_model[3])
+    #utils.dist_between_points(stm.point_model[2],stm.point_model[3])
 
 if __name__ == "__main__":
     main()
