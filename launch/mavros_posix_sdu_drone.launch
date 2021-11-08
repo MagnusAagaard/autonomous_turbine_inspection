@@ -13,9 +13,9 @@
     <!-- vehicle model and world -->
     <arg name="est" default="ekf2"/>
     <arg name="vehicle" default="sdu_drone_mono_cam"/>
-    <arg name="env" default="hca_airport"/>
+    <arg name="env" default="wind_turbine"/>
     <arg name="world" default="$(find autonomous_turbine_inspection)/worlds/$(arg env).world"/>
-    <arg name="sdf" default="$(find eit_playground)/models/$(arg vehicle)/$(arg vehicle).sdf"/>
+    <arg name="sdf" default="$(find autonomous_turbine_inspection)/models/$(arg vehicle)/$(arg vehicle).sdf"/>
     <env name="PX4_SIM_MODEL" value="$(arg vehicle)" />
     <env name="PX4_ESTIMATOR" value="$(arg est)" />
 
