@@ -841,16 +841,16 @@
           <updateRate>30.0</updateRate>
           <cameraName>mono_cam</cameraName>
           <frameName>/robot_camera_link</frameName>
-          <CxPrime>320.5</CxPrime>
-          <Cx>320.5</Cx>
-          <Cy>240.5</Cy>
+          <CxPrime>320.077433</CxPrime>
+          <Cx>320.077433</Cx>
+          <Cy>239.661438</Cy>
           <hackBaseline>0</hackBaseline>
-          <focalLength>277.191356</focalLength>
-          <distortionK1>0.0</distortionK1>
-          <distortionK2>0.0</distortionK2>
-          <distortionK3>0.0</distortionK3>
-          <distortionT1>0.0</distortionT1>
-          <distortionT2>0.0</distortionT2>
+          <focalLength>554.920125</focalLength>
+          <distortionK1>0.000760</distortionK1>
+          <distortionK2>-0.003021</distortionK2>
+          <distortionK3>0.000136</distortionK3>
+          <distortionT1>-0.000020</distortionT1>
+          <distortionT2>0.000000</distortionT2>
         </plugin>
         <!-- GStreamer camera plugin (needs a lot of CPU! Consider lowering the
         camera image size) -->

@@ -15,10 +15,10 @@ class PoseEstimator:
         # Init
         self._init_subscribers()
         self.pose = PoseStamped()
-        self.K = np.array([[277.191356, 0.0, 320.5], 
-                     [0.0, 277.191356, 240.5], 
-                     [0.0, 0.0, 1.0]])
-        self.stm = SkeletalTurbineModel(c=(360, 0), h=65, omega=0, r=10, phi=np.pi/5, b=52/2)
+        self.K = np.array([[554.920125, 0.000000, 320.077433], 
+                     [0.000000, 554.921917, 239.661438], 
+                     [0.000000, 0.000000, 1.000000]])
+        self.stm = SkeletalTurbineModel(c=(360, 0), h=65, omega=np.pi+0.3, r=10, phi=np.pi/2, b=60/2)
 
     def _init_subscribers(self):
         # Setup subscribers
@@ -43,7 +43,7 @@ class PoseEstimator:
         # Get transform from world frame to camera frame
         Rex = utils.get_rotation_matrix_from_world_to_camera_frame()
         # Camera pose/extrinsic parameters [R|t]:
-        R = utils.quarternion_to_rotation_matrix(self.pose.pose.orientation)
+        R = utils.quarternion_to_rotation_matrix(q=self.pose.pose.orientation, inverse=True)
         t = np.array([self.pose.pose.position.x,self.pose.pose.position.y, self.pose.pose.position.z])
         # Cam pose is transformed from world frame to camera frame
         # and the camera pose itself is then applied

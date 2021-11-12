@@ -7,7 +7,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from utils import get_rotation_matrix, get_rotation_matrix_from_world_to_camera_frame
 
 class SkeletalTurbineModel:
-    def __init__(self, c=(0,0), h=1, omega=0, r=1, phi=0, b=1):
+    def __init__(self, c=(2,0), h=1, omega=np.pi, r=1, phi=0, b=1):
         # Init
         self.c = c          # (x,y) location of turbine tower base
         self.h = h          # Height of turbine tower
@@ -21,7 +21,7 @@ class SkeletalTurbineModel:
 
     def initiate_point_model(self):
         # Initiate the default point model
-        # Default model: x is straight ahead, y is left/right and z is up and down
+        # Default model: x is straight ahead, y is left and z is up
         self.default_point_model = np.array(([0,0,0], 
                                      [0,0,1], 
                                      [1,0,1], 
@@ -78,7 +78,7 @@ class SkeletalTurbineModel:
         set_axes_equal(ax)
         plt.show()
 
-    def project_model_to_image(self, img=None, K=None, cam_pose=None):
+    def project_model_to_image(self, img=None, K=None, cam_pose=None, show_img=False):
         # Project the model into image coordinate system (2D)
         if img is None:
             img_h = 480
@@ -86,14 +86,21 @@ class SkeletalTurbineModel:
             img = np.ones((img_h, img_w, 3), dtype=np.uint8)*255
         # Intrinsic parameters:
         if K is None:
-            K = np.array([[277.191356, 0.0, 320.5], 
-                     [0.0, 277.191356, 240.5], 
-                     [0.0, 0.0, 1.0]])
+            K = np.array([[554.920125, 0.000000, 320.077433], 
+                     [0.000000, 554.921917, 239.661438], 
+                     [0.000000, 0.000000, 1.000000]])
         # Extrensic parameters
         if cam_pose is None:
-            R = np.array([[1,0,0],[0,1,0],[0,0,1]])
-            t = np.array([0,0,1])
+            # Get transform from world frame to camera frame
+            Rex = get_rotation_matrix_from_world_to_camera_frame()
+            # Camera pose/extrinsic parameters [R|t]:
+            #R = np.array([[1,0,0],[0,1,0],[0,0,1]])
+            R = get_rotation_matrix('y', np.pi/2)
+            #t = np.array([2,2,1])
+            t = np.array([0,0,0])
             cam_pose = np.column_stack((Rex @ R, -Rex @ R @ t))
+            #print(cam_pose)
+            #cam_pose = np.column_stack((R, t))
         # Projection matrix P = K [R|t]
         P = K @ cam_pose
         # Project to 2D
@@ -103,6 +110,8 @@ class SkeletalTurbineModel:
             point = np.copy(pt)
             point = np.append(point,1)
             #point_in_cam_coords = cam_pose @ point
+            #print("Point in cam coords")
+            #print(point_in_cam_coords)
             #point_in_cam_coords /= point_in_cam_coords[2]
             #print(point_in_cam_coords)
             #print("From cam coords")
@@ -111,7 +120,7 @@ class SkeletalTurbineModel:
             # Perspective transform
             point = P @ point
             # Re-scale homogenous point
-            if point[2] != 0:
+            if point[2] > 0:
                 point /= point[2]
             img_pts[i,:] = point[:2]
         # Show results
@@ -122,8 +131,9 @@ class SkeletalTurbineModel:
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[3,0]), int(img_pts[3,1])), (255,0,0), 2)
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[4,0]), int(img_pts[4,1])), (255,0,0), 2)
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[5,0]), int(img_pts[5,1])), (255,0,0), 2)
-        #cv2.imshow('Projected point model', img)
-        #cv2.waitKey(0)
+        if show_img:
+            cv2.imshow('Projected point model', img)
+            cv2.waitKey(0)
         
 
 def set_axes_equal(ax):
@@ -158,7 +168,7 @@ def set_axes_equal(ax):
 def main():
     # Main
     stm = SkeletalTurbineModel()
-    stm.project_model_to_image()
+    stm.project_model_to_image(show_img=True)
     #stm.plot_model()
     #utils.dist_between_points(stm.point_model[2],stm.point_model[3])
 
