@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 import rospy
 import mavros
@@ -6,7 +6,10 @@ from std_msgs.msg import Header, Bool
 from geometry_msgs.msg import PoseStamped
 from mavros_msgs.msg import State
 from mavros_msgs.srv import CommandBool, SetMode, CommandTOL
-from math import sqrt
+from math import sqrt, pi
+
+from tf.transformations import quaternion_from_euler
+
 
 class DroneControl:
     def __init__(self):
@@ -114,7 +117,7 @@ class DroneControl:
         return pose
 
     def fly_route(self, waypoints=[], hold_last_position=False):
-        if len(waypoints) > 1:
+        if not len(waypoints) >= 1:
             rospy.loginfo('Tried to fly route, but no waypoints specified.')
             return -1
         rospy.loginfo("Flying route")
@@ -141,7 +144,8 @@ def main():
     rospy.init_node('drone_control', anonymous=True)
     drone = DroneControl()
     #waypoints = [[x,y,z,q1,q2,q3,q4],...]
-    waypoints = [[270,0,drone.altitude, 0, 0, 0, 0]]
+    q = quaternion_from_euler(0,0,pi/8)
+    waypoints = [[270,0,drone.altitude, 0, 0, 0, 0], [270, 0, drone.altitude, q[0],q[1],q[2],q[3]]]
     drone.fly_route(waypoints=waypoints, hold_last_position=True)
     #drone.shutdownDrone()
     rospy.spin()
