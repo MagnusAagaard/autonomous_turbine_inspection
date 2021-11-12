@@ -31,7 +31,7 @@ def get_rotation_matrix_from_world_to_camera_frame():
     R = np.array([[0, -1, 0], [0,0,-1], [1,0,0]])
     return R
 
-def quarternion_to_rotation_matrix(q):
+def quarternion_to_rotation_matrix(q, inverse=False):
     """
     Returns rotation matrix given a quarternion as a PoseStamped.pose.orientation msg.
     The formula for converting from a quarternion to a rotation 
@@ -39,9 +39,9 @@ def quarternion_to_rotation_matrix(q):
     https://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/index.htm
     """
     qw = q.w
-    qx = q.x
-    qy = q.y
-    qz = q.z
+    qx = q.x if not inverse else -q.x
+    qy = q.y if not inverse else -q.y
+    qz = q.z if not inverse else -q.z
     R11 = 1 - 2*qy**2 - 2*qz**2	
     R12 = 2*qx*qy - 2*qz*qw
     R13 = 2*qx*qz + 2*qy*qw
