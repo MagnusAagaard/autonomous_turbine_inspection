@@ -122,7 +122,7 @@
 
 
     <model name="vestas1">
-      <pose>360 0 -8.043 0 0 0.3</pose>
+      <pose>360 0 -8.043 0 0 0.0</pose>
       <include>
         <uri>model://Vestas_V52</uri>
       </include>

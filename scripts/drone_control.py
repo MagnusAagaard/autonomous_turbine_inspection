@@ -144,8 +144,9 @@ def main():
     rospy.init_node('drone_control', anonymous=True)
     drone = DroneControl()
     #waypoints = [[x,y,z,q1,q2,q3,q4],...]
-    q = quaternion_from_euler(0,0,pi/8)
-    waypoints = [[270,0,drone.altitude, 0, 0, 0, 0], [270, 0, drone.altitude, q[0],q[1],q[2],q[3]]]
+    #q = quaternion_from_euler(0,0,pi/8)
+    q = quaternion_from_euler(0,0,0)
+    waypoints = [[60,0,drone.altitude, 0, 0, 0, 0], [60, 0, drone.altitude, q[0],q[1],q[2],q[3]]]
     drone.fly_route(waypoints=waypoints, hold_last_position=True)
     #drone.shutdownDrone()
     rospy.spin()
