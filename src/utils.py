@@ -1,4 +1,5 @@
 import numpy as np
+import cv2
 
 def get_rotation_matrix(axis, angle):
     '''
@@ -75,7 +76,6 @@ def calculate_target_size(img_size: int, kernel_size: int) -> int:
     return num_pixels
 
 def convolve(img: np.array, kernel: np.array) -> np.array:
-    # Assuming a rectangular image
     tgt_size = (img.shape[0] - kernel.shape[0] + 1, img.shape[1] - kernel.shape[1] + 1)
     # To simplify things
     r, c = kernel.shape
@@ -94,5 +94,28 @@ def convolve(img: np.array, kernel: np.array) -> np.array:
             # Apply the convolution - element-wise multiplication and summation of the result
             # Store the result to i-th row and j-th column of our convolved_img array
             convolved_img[i, j] = np.sum(np.multiply(mat, kernel))
+            
+    return convolved_img
+
+def convolve_mask(img: np.array, kernel: np.array) -> np.array:
+    # Crop image
+    tgt_size = (img.shape[0] - kernel.shape[0] + 1, img.shape[1] - kernel.shape[1] + 1)
+    # To simplify things
+    r, c = kernel.shape
+    
+    # 2D array of zeros
+    convolved_img = np.zeros(shape=tgt_size)
+    
+    # Iterate over the rows
+    for i in range(tgt_size[0]):
+        # Iterate over the columns
+        for j in range(tgt_size[1]):
+            # img[i, j] = individual pixel value
+            # Get the current matrix
+            mat = img[i:i+r, j:j+c]
+            
+            # Apply the convolution - element-wise multiplication and summation of the result
+            # Store the result to i-th row and j-th column of our convolved_img array
+            convolved_img[i, j] = np.sum(cv2.bitwise_and(mat, mat, mask=kernel))
             
     return convolved_img
