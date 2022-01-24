@@ -96,7 +96,9 @@ class BladeDetector:
         print("Number of filtered lines: {}".format(len(self.filtered_lines)))
         if self.save_result:
             cv2.imwrite(self.save_path[:-4] + '_filtered.jpg', self.img)
-        self.estimate_best_fit()
+        model_dict = self.estimate_best_fit()
+        mean_length = model_dict.get('mean_length')
+        print(''mean_length)
         if self.save_result:
             cv2.imwrite(self.save_path[:-4] + '_final.jpg', self.img_final)
 
@@ -108,8 +110,8 @@ class BladeDetector:
 
         @type   lines: numpy array of shape (3,4)
         @param  lines: Each row is 4 numbers, y1, x1, y2, x2
-        @rtype:   numpy array of shape (,5)
-        @return:  the turbine model parameters
+        @rtype:   dict
+        @return:  dict containing the turbine model parameters
         """ 
         # Use RANSAC to estimate the best fit from the filtered lines
         n = 3   # Minimum number of parameters to estimate model
@@ -138,6 +140,8 @@ class BladeDetector:
             cv2.circle(self.img_final, centroid, 8, (0,0,255), -1)
             for pt in end_pts:
                 cv2.line(self.img_final, centroid, tuple(pt), (255,255,0), 2)
+        
+        return best_fit
 
     def find_extreme_points(self, cnt):
         """
@@ -193,7 +197,10 @@ class BladeDetector:
         intersections.append(np.cross(lines_homogenous[0], lines_homogenous[2]))
         intersections = np.array(intersections)
         # Back to cartesian space (x,y)
-        intersections = np.array([intersection[:2] / intersection[2] for intersection in intersections])
+        intersections = np.array([intersection[:2] / intersection[2] if intersection[2] != 0 else [np.NAN, np.NAN] for intersection in intersections])
+        # Check for any NaNs (division by 0..)
+        if np.any(np.isnan(intersections).flatten()):
+            return parameter_dict
 
         # Calculate centroid of intersections (x,y) and round to int
         centroid = (np.sum(intersections, axis=0)/len(intersections)).astype(int)
@@ -212,9 +219,9 @@ class BladeDetector:
                 end_pt_left = extreme_pts[0]
                 end_pt_right = extreme_pts[1]
                 #end_pt_bot = (1244,1563)
-                end_pt_bot = (820, 530)
+                #end_pt_bot = (820, 530)
                 # This is actually top, but keep name bot for convenience..
-                #end_pt_bot = extreme_pts[2]
+                end_pt_bot = extreme_pts[2]
                 parameter_dict["line_endpoints"] = [end_pt_left, end_pt_right, end_pt_bot]
                 line_lengths = self.calculate_line_lengths(start_pt, [end_pt_left, end_pt_right, end_pt_bot])
                 parameter_dict["line_lengths"] = line_lengths
@@ -300,7 +307,7 @@ class BladeDetector:
 
 
 def main():
-    bd = BladeDetector(img_path='./scripts/image_data/gazebo.png', save_result=True)
+    bd = BladeDetector(img_path='./scripts/image_data/gazebo_100.png', save_result=True)
     bd.get_mask('./scripts/image_data/offshore_wind_turbine.jpg', './scripts/image_data/annotated_wind_turbine.jpg')
     bd.detect()
 
