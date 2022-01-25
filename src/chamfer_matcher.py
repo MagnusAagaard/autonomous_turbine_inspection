@@ -30,34 +30,34 @@ class ChamferMatcher:
         #cv2.imshow("Dist image", dist_img)
         #cv2.waitKey(0)
         # Apply 2D convolution
-        print('convolved loop\t\t', timeit.timeit(lambda: utils.convolve(dist_img, self.template_edges), number=1))
+        #print('convolved loop\t\t', timeit.timeit(lambda: utils.convolve(dist_img, self.template_edges), number=1))
         #print('convolved loop2\t\t', timeit.timeit(lambda: utils.convolve(dist_img, self.template_edges), number=1))
         #convolved_img = utils.convolve(dist_img, self.template_edges)
         #jitted_function = jit()(utils.convolve)
         #print('jitted loop\t\t', timeit.timeit(lambda: jitted_function(dist_img, self.template_edges), number=1))
         #print('jitted loop2\t\t', timeit.timeit(lambda: jitted_function(dist_img, self.template_edges), number=1))
-        print('convolved loop\t\t', timeit.timeit(lambda: utils.convolve_mask(dist_img, self.template_edges), number=1))
+        #print('convolved loop\t\t', timeit.timeit(lambda: utils.convolve_mask(dist_img, self.template_edges), number=1))
         #print('convolved loop2\t\t', timeit.timeit(lambda: utils.convolve_mask(dist_img, self.template_edges), number=1))
         #print('convolved loop\t\t', timeit.timeit(lambda: utils.convolve_mask(dist_img, self.template_edges), number=1))
         #convolved_img_mask = utils.convolve(dist_img, self.template_edges)
-        print('tm loop_ccorr\t\t', timeit.timeit(lambda: cv2.matchTemplate(dist_img, self.template_edges, cv2.TM_CCORR), number=1))
+        #print('tm loop_ccorr\t\t', timeit.timeit(lambda: cv2.matchTemplate(dist_img, self.template_edges, cv2.TM_CCORR), number=1))
         res = cv2.matchTemplate(dist_img, self.template_edges, cv2.TM_CCORR_NORMED)
         #jitted_function2 = jit()(utils.convolve_mask)
         #print('jitted loop21\t\t', timeit.timeit(lambda: jitted_function2(dist_img, self.template_edges), number=1))
         #print('jitted loop22\t\t', timeit.timeit(lambda: jitted_function2(dist_img, self.template_edges), number=1))
         
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
-        print(max_val, min_val)
+        #print(max_val, min_val)
         w, h = self.template_edges.shape[::-1]
         top_left = min_loc
         bottom_right = (top_left[0] + w, top_left[1] + h)
-        cv2.rectangle(self.img, top_left, bottom_right, 255, 2)
+        #cv2.rectangle(self.img, top_left, bottom_right, 255, 2)
         #plt.imshow(res)
         #plt.show()
-        cv2.imshow('Match result', res)
-        cv2.imshow('Image', self.img)
-        cv2.waitKey(0)
-        return min_val
+        #cv2.imshow('Match result', res)
+        #cv2.imshow('Image', self.img)
+        #cv2.waitKey(0)
+        return min_val, top_left, bottom_right
         
 
 def main():
@@ -70,7 +70,7 @@ def main():
     cm = ChamferMatcher(img, template)
     cm.detect_edges()
     cm.match()
-    '''
+
     min_x = -250
     max_x = -150
     min_z = 65
@@ -82,14 +82,16 @@ def main():
         for z in range(min_z, max_z, 1):
             cm.template = render.offscreen_render([x, 0, z])
             cm.detect_edges()
-            scores.append(cm.match_cm())
-            t0 = timeit.default_timer()
+            scores.append(cm.match())
             estimates.append([x,0,z])
-            t1 = timeit.default_timer()
-            print(f'Time: {t1-t0}')
-    print(np.argmin(scores))
-    print(estimates[np.argmin(scores)])
-    '''
+    print(np.argmin(scores, axis=0)[0])
+    print(estimates[np.argmin(scores, axis=0)[0]])
+    top_left = scores[np.argmin(scores, axis=0)[0]][1]
+    bottom_right = scores[np.argmin(scores, axis=0)[0]][2]
+    print(top_left, bottom_right)
+    cv2.rectangle(img, top_left, bottom_right, 255, 2)
+    cv2.imshow('Image', img)
+    cv2.waitKey(0)
     
 
 if __name__ == "__main__":
