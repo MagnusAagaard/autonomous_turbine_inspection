@@ -7,14 +7,14 @@ from mpl_toolkits.mplot3d import Axes3D
 from utils import get_rotation_matrix, get_rotation_matrix_from_world_to_camera_frame
 
 class SkeletalTurbineModel:
-    def __init__(self, c=(2,0), h=1, omega=np.pi, r=1, phi=0, b=1):
+    def __init__(self, c=(0,0), h=71.74, omega=np.pi, r=5.16, phi=0, b=35.1):
         # Init
         self.c = c          # (x,y) location of turbine tower base
-        self.h = h          # Height of turbine tower
+        self.h = h          # Height of turbine tower (71.74m)
         self.omega = omega  # Heading of turbine relative to drone coordinate system
-        self.r = r          # Length of turbine nacelle
+        self.r = r          # Length of turbine nacelle (5.16m)
         self.phi = phi      # Rotation angle of turbine blades
-        self.b = b          # Length of turbine blades
+        self.b = b          # Length of turbine blades (35.1m)
         self.initiate_point_model()
         self.update_point_model()
         self.update_line_model()
@@ -168,8 +168,8 @@ def set_axes_equal(ax):
 def main():
     # Main
     stm = SkeletalTurbineModel()
-    stm.project_model_to_image(show_img=True)
-    #stm.plot_model()
+    #stm.project_model_to_image(show_img=True)
+    stm.plot_model()
     #utils.dist_between_points(stm.point_model[2],stm.point_model[3])
 
 if __name__ == "__main__":
