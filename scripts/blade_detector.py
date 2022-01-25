@@ -98,7 +98,7 @@ class BladeDetector:
             cv2.imwrite(self.save_path[:-4] + '_filtered.jpg', self.img)
         model_dict = self.estimate_best_fit()
         mean_length = model_dict.get('mean_length')
-        print(''mean_length)
+        print(f'Mean length: {mean_length}')
         if self.save_result:
             cv2.imwrite(self.save_path[:-4] + '_final.jpg', self.img_final)
 
