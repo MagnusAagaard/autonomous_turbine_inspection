@@ -1,0 +1,64 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <model name="vestas_v52_rotation">
+    <static>true</static>
+    <!-- Base tower -->
+    <link name="base_link">
+      <pose>0 0 0 0 0 0</pose>
+      <collision name="tower_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>model://vestas_v52_rotation/meshes/vestas_v52_tower.dae</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <visual name="tower_visual">
+        <geometry>
+          <mesh>
+            <uri>model://vestas_v52_rotation/meshes/vestas_v52_tower.dae</uri>
+	         </mesh>
+        </geometry>
+     </visual>
+    </link>
+
+    <!-- Wings -->
+    <link name='wings'>
+      <!-- Change wing rotation here as rotation around x-axis -->
+      <pose>-6.1541 -0.170453 71.7424 0.3 0 0</pose>
+      <collision name="wings_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>model://vestas_v52_rotation/meshes/vestas_v52_wings.dae</uri>
+          </mesh>
+        </geometry>
+      </collision>
+      <visual name="wings_visual">
+        <geometry>
+          <mesh>
+            <uri>model://vestas_v52_rotation/meshes/vestas_v52_wings.dae</uri>
+	         </mesh>
+        </geometry>
+     </visual>
+    </link>
+    <joint name='wings_joint' type='revolute'>
+      <child>wings</child>
+      <parent>base_link</parent>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>0</lower>
+          <upper>0</upper>
+          <effort>0</effort>
+          <velocity>0</velocity>
+        </limit>
+        <dynamics>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+        <use_parent_model_frame>1</use_parent_model_frame>
+      </axis>
+    </joint>
+  </model>
+</sdf>
