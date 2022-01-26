@@ -46,9 +46,9 @@ class Renderer:
         wings_pose = np.copy(self.camera_pose)
         cam_pose = np.copy(self.camera_pose)
         # If tower heading is rotated (rotation around z) both wings and tower should rotate
-        Rz_wings = utils.get_rotation_matrix('z', np.pi/4)
+        Rz_wings = utils.get_rotation_matrix('z', 0.785)
         Rz_tower = Rz_wings
-        Rx_wings = utils.get_rotation_matrix('x', np.pi/2)
+        Rx_wings = utils.get_rotation_matrix('x', (30/180*np.pi))
         wings_pose[:3, 3] = Rz_wings @ [-6.1541, -0.170453, 71.7424]
         wings_pose[:3,:3] = Rz_wings @ Rx_wings @ wings_pose[:3,:3]
         tower_pose[:3,:3] = Rz_wings @ tower_pose[:3,:3]
@@ -57,7 +57,6 @@ class Renderer:
         scene.add(self.mesh_tower, name='tower', pose=tower_pose)
         scene.add(self.mesh_wings, name='wings', pose=wings_pose)
         scene.add(self.camera, name='camera', pose=cam_pose)
-        print(scene.get_pose(scene.get_nodes(name='wings').pop()))
         #light = pyrender.DirectionalLight(intensity=3.0)
         #scene.add(light, pose=camera_pose)
         #r = pyrender.OffscreenRenderer(640, 480)
