@@ -3,7 +3,8 @@ from catkin_pkg.python_setup import generate_distutils_setup
 
 # fetch values from package.xml
 setup_args = generate_distutils_setup(
-    packages=['autonomous_turbine_inspection', 'skeletal_turbine_model'],
-    package_dir={'': 'src'})
+    packages=['blade_detector', 'renderer', 'chamfer_matcher', 'skeletal_turbine_model'],
+    package_dir={'': 'src'}
+)
 
 setup(**setup_args)
