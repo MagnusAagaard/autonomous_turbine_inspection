@@ -62,7 +62,7 @@ class ChamferMatcher:
 
 def main():
     img = cv2.imread('./scripts/image_data/gazebo_200.png')
-    render = Renderer('/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/Vestas_V52/meshes/vestas_v52.stl')
+    render = Renderer(tower='./models/vestas_v52_rotation/meshes/vestas_v52_tower.stl', wings='./models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
     print('render\t\t', timeit.timeit(lambda: render.offscreen_render([-200, 0, 65 + 8]), number=300) / 300)
     template = render.offscreen_render([-200, 0, 65 + 8])
     cv2.imshow('Template', template)
