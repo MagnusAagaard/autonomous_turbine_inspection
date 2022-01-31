@@ -35,24 +35,29 @@ class Renderer:
         scene.add(self.camera, pose=self.camera_pose)
         pyrender.Viewer(scene, use_raymond_lighting=True)
 
-    def offscreen_render(self, estimate):
+    def offscreen_render(self, pose_estimate):
         '''
         Renders CAD model to 2D image with the camera looking straight at the model
-        with a position of x,y,z given from parameters 'estimate'.
+        with a position of x,y,z given from parameters 'pose_estimate'.
+        The wind turbine is oriented with a yaw value and the wings are oriented
+        with a roll value also given from parameters 'pose_estimate'.
+        Pose estimate input: x,y,z,r,y. Parameters x,y,z is in meters and
+        r,y is in degrees.
         Returns the rendered 2D image.
+        
         '''
         scene = pyrender.Scene()
         tower_pose = np.copy(self.camera_pose)
         wings_pose = np.copy(self.camera_pose)
         cam_pose = np.copy(self.camera_pose)
         # If tower heading is rotated (rotation around z) both wings and tower should rotate
-        Rz_wings = utils.get_rotation_matrix('z', 0.785)
+        Rz_wings = utils.get_rotation_matrix('z', pose_estimate[4]/180*np.pi)
         Rz_tower = Rz_wings
-        Rx_wings = utils.get_rotation_matrix('x', (30/180*np.pi))
+        Rx_wings = utils.get_rotation_matrix('x', (pose_estimate[3]/180*np.pi))
         wings_pose[:3, 3] = Rz_wings @ [-6.1541, -0.170453, 71.7424]
         wings_pose[:3,:3] = Rz_wings @ Rx_wings @ wings_pose[:3,:3]
         tower_pose[:3,:3] = Rz_wings @ tower_pose[:3,:3]
-        cam_pose[:3, 3] = estimate
+        cam_pose[:3, 3] = pose_estimate[:3]
         cam_pose[:3,:3] = self.Rz @ self.Rx @ self.camera_pose[:3,:3]
         scene.add(self.mesh_tower, name='tower', pose=tower_pose)
         scene.add(self.mesh_wings, name='wings', pose=wings_pose)
