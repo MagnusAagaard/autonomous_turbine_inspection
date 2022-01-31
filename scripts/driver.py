@@ -9,15 +9,16 @@ import numpy as np
 def main():
     render = Renderer(tower='./models/vestas_v52_rotation/meshes/vestas_v52_tower.stl', wings='./models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
     img = cv2.imread('./scripts/image_data/gazebo_100_45.png')
+    cv2.imshow('Image', img)
     bd = BladeDetector(img_path='./scripts/image_data/gazebo_100_45.png', save_result=True)
     bd.get_mask('./scripts/image_data/offshore_wind_turbine.jpg', './scripts/image_data/annotated_wind_turbine.jpg')
     model_dict = bd.detect()
     mean_length = model_dict.get('mean_length')
     print(f'Mean length: {mean_length}')
-    angles_between_lines = model_dict.get('angles_between_lines')
-    print(f'Angle between blades: {angles_between_lines}')
+    #angles_between_lines = model_dict.get('angles_between_lines')
+    #print(f'Angle between blades: {angles_between_lines}')
     # D' = (known_width * focal_length / pixels) + length of turbine nacelle (we want distance to center of turbine)
-    estimated_dist = (35.1 * 554.920125) / mean_length + (np.cos(0.875)*5.16)
+    estimated_dist = (35.1 * 554.920125) / mean_length + 5.16
     print(f'Estimated distance: {estimated_dist}')
     # Chamfer matcher needs an initial template..
     template = render.offscreen_render([-estimated_dist, 0, 71.74 - 8])
