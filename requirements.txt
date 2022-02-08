@@ -2,3 +2,5 @@ ocrd-fork-pylsd >= 0.0.4
 opencv-python >= 4.2.0.34
 numpy >= 1.19.5
 pyrender >= 0.1.45
+matplotlib
+tqdm
