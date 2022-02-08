@@ -1,0 +1,173 @@
+import json
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import torch
+import torchvision.transforms as transforms
+
+'''
+Images are labelled using labelbox (cd labelbox && sudo docker-compose up)
+Labelbox is then available at localhost:8080
+'''
+
+color_dict_bgr = {'wing_tip': (235, 52, 229),
+                  'wing_center': (40, 133, 12),
+                  'tower_top': (247, 104, 32),
+                  'tower_bottom': (27, 11, 135)}
+
+index_dict = {'wing_tip': 0,
+              'wing_center': 1,
+              'tower_top': 2,
+              'tower_bottom': 3}
+
+def create_input_img(kps, img_name, sigma_input=20, sigma_label=5):
+    '''
+    Takes as input the img_name and keypoints to draw on them. Sigma is used for Gaussian smoothing.
+    Returns two numpy array of shape (img_shape[0], img_shape[1], 10).
+    First is input_img, then label_img
+    First three channels are BGR image.
+    Next four channels are point data in order: wing_tips, wing_center, tower_top, tower_bottom
+    Last three channels are line data in order: tower_bottom --> tower_top, tower_top --> wing_center, wing_center --> wing_tips
+    '''
+    img = cv2.imread(f'./src/hourglass_network/data/all_data/{img_name}').astype(np.float32)/255.0
+    kernel_size = 0    # From OpenCV formula. If set at 0, the kernel size is automatically calculated as 31 with sigma=5 based on sigma and vice versa if sigma = 0
+    # Random affine transform
+    transform = transforms.RandomAffine(degrees=2, translate=(0.05, 0.05), shear=2)
+    # Data variables
+    pt_data = [np.zeros((img.shape[0], img.shape[1]), dtype=np.float32) for i in range(4)]
+    line_data = [np.zeros((img.shape[0], img.shape[1]), dtype=np.float32) for i in range(3)]
+    line_data_input = [np.zeros((img.shape[0], img.shape[1]), dtype=np.float32) for i in range(3)]
+    label_img = np.zeros((img.shape[0], img.shape[1], 10), dtype=np.float32)
+    label_img[:,:,:3] = np.copy(img)
+    input_img = np.copy(label_img)
+    # Housekeeper variable for tmp keypoints
+    out_of_bound_kps = []
+    
+    kps.sort(key=lambda x: x[2])
+    for kp in kps:
+        if kp[2].find('tmp') == -1:
+            #print(kp)
+            #print(index_dict.get(kp[2]))
+            pt_data[index_dict.get(kp[2])][kp[1]-1,kp[0]-1] = 1.0
+        else:
+            out_of_bound_kps.append(kp)
+    # Save labelled point data in numpy array
+    for i, pts in enumerate(pt_data):
+        label_img[:,:,3+i] = np.copy(pts)
+    # Draw sorted keypoints on label image
+    # tower_bottom --> tower_top
+    cv2.line(line_data[0], kps[0][:2], kps[1][:2], 1.0, 1)
+    # tower_top --> wing_center
+    cv2.line(line_data[1], kps[1][:2], kps[2][:2], 1.0, 1)
+    # wing_center --> wing_tips
+    cv2.line(line_data[2], kps[2][:2], kps[3][:2], 1.0, 1)
+    cv2.line(line_data[2], kps[2][:2], kps[4][:2], 1.0, 1)
+    cv2.line(line_data[2], kps[2][:2], kps[5][:2], 1.0, 1)
+    for i, lines in enumerate(line_data):
+        label_img[:,:,3+len(pt_data)+i] = np.copy(lines)
+    
+    # Copy label image --> Input image and apply random affine transforms to landmark points
+    landmarks = np.copy(label_img[:,:,3:]).transpose(2,0,1)
+    tensor = torch.from_numpy(landmarks)
+    tensor = transform(tensor)
+    landmarks = tensor.numpy().transpose(1,2,0)
+    input_img[:,:,3:] = np.copy(landmarks)
+    
+    # Draw lines on input image
+    # Find indicies for where keypoints are transformed to
+    #kp_input = np.argwhere(input_img[:,:,3:] == 1.0)
+    #
+    #if out_of_bound_kps:
+    #    for pt in out_of_bound_kps:
+    #        kp_input = np.vstack((kp_input, np.array([[pt[1], pt[0], index_dict.get(pt[2][:-4])]])))
+    # Swap rows and columns for line drawing
+    #kp_input[:, [1, 0]] = kp_input[:, [0, 1]]
+    
+    # Apply Gaussian blur on label image and renormalize values 0-1
+    for i in range(3, label_img.shape[2]):
+        if label_img[:,:,i].max() != 0.0:
+            label_img[:,:,i] = cv2.GaussianBlur(label_img[:,:,i], (kernel_size, kernel_size), sigma_label)
+            label_img[:,:,i] *= 1.0/label_img[:,:,i].max()
+    # Apply Gaussian blur on input image and renormalize values 0-1
+    for i in range(3, input_img.shape[2]):
+        if input_img[:,:,i].max() != 0.0:
+            input_img[:,:,i] = cv2.GaussianBlur(input_img[:,:,i], (kernel_size, kernel_size), sigma_input)
+            input_img[:,:,i] *= 1.0/input_img[:,:,i].max()
+    
+    #plt.figure(1)
+    #plt.imshow(np.sum(label_img[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=1.0)
+    #plt.figure(2)
+    #plt.imshow(np.sum(input_img[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=1.0)
+    #cv2.imshow('img',img)
+    #plt.show()
+    return input_img, label_img
+
+def show_keypoints_on_img(kps, img_name):
+    img = cv2.imread(f'./src/hourglass_network/data/all_data/{img_name}')
+    show = False
+    kps.sort(key=lambda x: x[2])
+    for kp in kps:
+        if kp[2].find('tmp') == -1:
+            cv2.circle(img, kp[:2], 3, color_dict_bgr.get(kp[2]), -1)
+        else:
+            show = True
+    # Keypoints are sorted
+    # tower_bottom --> tower_top
+    cv2.line(img, kps[0][:2], kps[1][:2], (255,0,0), 2)
+    # tower_top --> wing_center
+    cv2.line(img, kps[1][:2], kps[2][:2], (0, 255, 0), 2)
+    # wing_center --> wing_tips
+    cv2.line(img, kps[2][:2], kps[3][:2], (0, 0, 255), 2)
+    cv2.line(img, kps[2][:2], kps[4][:2], (0, 0, 255), 2)
+    cv2.line(img, kps[2][:2], kps[5][:2], (0, 0, 255), 2)
+    if show:
+        cv2.imshow('Image', img)
+        cv2.waitKey(0)
+        
+def get_annotations(path):
+    '''
+    Opens annotations and returns them.
+    '''
+    with open(path, 'rb') as f:
+        annotations = json.load(f)
+    return annotations
+
+def process_annotations(img):
+    '''
+    Processes the annotations loaded with get_annotations().
+    '''
+    img_name = img.get('img').split('-')[1]
+    kps = []
+    for kp in img.get('kp-1'):
+        width = float(kp.get('original_width')) / 100
+        height = float(kp.get('original_height')) / 100
+        x = float(kp.get('x')) * width
+        y = float(kp.get('y')) * height
+        kp_label = kp.get('keypointlabels')[0]
+        kps.append([int(x), int(y), kp_label])
+    #show_keypoints_on_img(kps, img_name)
+    return create_input_img(kps, img_name)
+
+def main():
+    with open('./src/hourglass_network/data/annotations.json', 'rb') as f:
+        annotations = json.load(f)
+    for img in annotations:
+        img_name = img.get('img').split('-')[1]
+        kps = []
+        for kp in img.get('kp-1'):
+            width = float(kp.get('original_width')) / 100
+            height = float(kp.get('original_height')) / 100
+            x = float(kp.get('x')) * width
+            y = float(kp.get('y')) * height
+            kp_label = kp.get('keypointlabels')[0]
+            kps.append([int(x), int(y), kp_label])
+        #show_keypoints_on_img(kps, img_name)
+        input_img, label_img = create_input_img(kps, img_name)
+    
+    #annotations = get_annotations()
+    #for img in annotations:
+    #    input_img, label_img = process_annotations(img)
+    
+
+if __name__ == "__main__":
+    main()
