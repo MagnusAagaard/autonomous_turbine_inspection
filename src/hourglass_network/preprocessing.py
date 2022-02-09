@@ -102,9 +102,8 @@ def create_input_img(kps, img_name, sigma_input=20, sigma_label=5):
     #plt.show()
     return input_img, label_img
 
-def show_keypoints_on_img(kps, img_name):
+def show_keypoints_on_img(kps, img_name, show=False):
     img = cv2.imread(f'./src/hourglass_network/data/all_data/{img_name}')
-    show = False
     kps.sort(key=lambda x: x[2])
     for kp in kps:
         if kp[2].find('tmp') == -1:
@@ -136,7 +135,15 @@ def process_annotations(img):
     '''
     Processes the annotations loaded with get_annotations().
     '''
-    img_name = img.get('img').split('-')[1]
+    img_name = get_img_name(img)
+    kps = get_kps(img)
+    #show_keypoints_on_img(kps, img_name)
+    return create_input_img(kps, img_name)
+
+def get_img_name(img):
+    return img.get('img').split('-')[1]
+
+def get_kps(img):
     kps = []
     for kp in img.get('kp-1'):
         width = float(kp.get('original_width')) / 100
@@ -145,8 +152,7 @@ def process_annotations(img):
         y = float(kp.get('y')) * height
         kp_label = kp.get('keypointlabels')[0]
         kps.append([int(x), int(y), kp_label])
-    #show_keypoints_on_img(kps, img_name)
-    return create_input_img(kps, img_name)
+    return kps
 
 def main():
     with open('./src/hourglass_network/data/annotations.json', 'rb') as f:
