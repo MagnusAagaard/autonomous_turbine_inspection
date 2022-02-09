@@ -5,7 +5,7 @@ import torch
 from torch.optim import Adam
 from torch.nn import BCELoss
 from torch.utils.data import DataLoader
-from torchvision.transforms import Compose, ToTensor, RandomCrop
+from torchvision.transforms import Compose, ToTensor, RandomCrop, Resize
 import numpy as np
 import argparse
 import shutil
@@ -18,9 +18,7 @@ def parse_command_line():
         parser.add_argument('-s', '--save', type=int, default=5, help='save checkpoint of model every x epoch')
         parser.add_argument('-e', '--epochs', type=int, default=100, help='max number of epochs')
         parser.add_argument('-r', '--resume', type=bool, default=False, help='whether to resume training from a checkpoint')
-        parser.add_argument('-b', '--base_dir', type=str, 
-                            default='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network',
-                            help='base directory of model code')
+        parser.add_argument('-b', '--base_dir', type=str, default='./src/hourglass_network', help='base directory of model code')
         args = parser.parse_args()
         return args
 
@@ -59,35 +57,36 @@ class Trainer:
         self.epoch = checkpoint['epoch']
         print('Loaded checkpoint!')
         
-    def save_checkpoint(self, state, is_best, filename='checkpoint.pt'):
+    def save_checkpoint(self, state, is_best, epoch):
         """
         from pytorch/examples
         """
-        basename = self.base_dir
+        basename = os.path.join(self.base_dir, 'checkpoints')
         if not os.path.exists(basename):
             os.makedirs(basename)
-        filename_loc = os.path.join(basename, filename)
+        filename_loc = os.path.join(basename, f'checkpoint_{epoch}.pt')
         torch.save(state, filename_loc)
         if is_best:
-            shutil.copyfile(filename_loc, 'model_best.pt')
+            best_filename_loc = os.path.join(basename, f'model_best_{epoch}.pt')
+            shutil.copyfile(filename_loc, best_filename_loc)
             
-    def save(self, is_best):
-        print('Saving checkpoint..')
+    def save(self, is_best, epoch):
+        print(f'Saving checkpoint for epoch {epoch}..')
         self.save_checkpoint({
             'state_dict': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
-            'epoch': self.epoch}, is_best)
+            'epoch': self.epoch}, is_best, epoch)
         
     def train(self):
         # Run trainer
-        train_dataset = WindturbineDataset('./src/hourglass_network/data/annotations.json', './src/hourglass_network/data/all_data', transform=Compose([ToTensor(), RandomCrop(256)]))
-        train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
-        n_epochs = 10
-
-        for epoch in range(1, n_epochs+1):
+        train_dataset = WindturbineDataset(f'{self.base_dir}/data/annotations.json', f'{self.base_dir}/data/all_data', transform=Compose([ToTensor(), Resize((256, 256))]))
+        train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+        
+        lowest_loss = 100
+        for epoch in tqdm(range(1, self.num_epochs+1)):
             # monitor training loss
             train_loss = 0.0
-
+            best = False
             #Training
             for data in tqdm(train_dataloader):
                 input_images, label_images = data
@@ -102,7 +101,11 @@ class Trainer:
                 
             train_loss = train_loss/len(train_dataloader)
             tqdm.write('Epoch: {} \tTraining Loss: {:.6f}'.format(epoch, train_loss))
-        self.save(is_best=True)
+            if epoch % self.save_interval == 0:
+                if train_loss < lowest_loss:
+                    lowest_loss = train_loss
+                    best = True
+                self.save(is_best=best, epoch=epoch)
 
 def main():
     args = parse_command_line()
