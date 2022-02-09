@@ -17,17 +17,17 @@ def show_output(self):
 def main():
     model = ConvEncoderDecoder(10)
     # Load model
-    checkpoint = torch.load('./src/hourglass_network/checkpoints/checkpoint_5.pt')
+    checkpoint = torch.load('./src/hourglass_network/checkpoints/model_best_95.pt')
     model.load_state_dict(checkpoint['state_dict'])
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
     model.eval()
     # Get input image
-    annotations = preprocessing.get_annotations('./src/hourglass_network/data/annotations_test.json')
+    annotations = preprocessing.get_annotations('./src/hourglass_network/data/annotations.json')
     #img_name = preprocessing.get_img_name(annotations[0])
     #kps = preprocessing.get_kps(annotations[0])
     #preprocessing.show_keypoints_on_img(kps, img_name, show=True)
-    input_img, label_img = preprocessing.process_annotations(annotations[0])
+    input_img, label_img = preprocessing.process_annotations(annotations[1])
     img = input_img[:,:,:3]
     plt.figure(1)
     plt.imshow(np.sum(label_img[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=1.0)
@@ -37,7 +37,7 @@ def main():
     
     # Run inference
     with torch.no_grad():
-        transform = Compose([ToTensor(), Resize(256)])
+        transform = Compose([ToTensor(), Resize((256,256))])
         cropped_input_img = transform(input_img)
         # Expand dim such that shape is now (B, C, H, W) from (C, H, W)
         cropped_input_img = torch.unsqueeze(cropped_input_img,0)
@@ -55,7 +55,7 @@ def main():
     output_img = output[:,:,:3]
     cv2.imshow('Output_img', output_img)
     plt.figure(4)
-    plt.imshow(np.sum(output_img[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=1.0)
+    plt.imshow(np.sum(output[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=np.sum(output[:,:,3:].max()))
     
     plt.show()
 
