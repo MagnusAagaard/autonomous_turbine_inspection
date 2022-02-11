@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import torchvision.transforms as transforms
+from skimage import transform as tf
 
 '''
 Images are labelled using labelbox (cd labelbox && sudo docker-compose up)
@@ -20,7 +21,33 @@ index_dict = {'wing_tip': 0,
               'tower_top': 2,
               'tower_bottom': 3}
 
-def create_input_img(kps, img_name, sigma_input=20, sigma_label=5):
+def get_similarity_transform_with_offset(scale, angle, trans_x, trans_y, im_w, im_h):
+    '''
+    Similarity transform (rotation, translation and scale in one).
+    inv(T) @ M @ T gives rotation around center of image instead
+    '''
+    T = np.array([
+        [1, 0, -im_w/2],
+        [0, 1, -im_h/2],
+        [0, 0, 1]
+    ])
+    return np.linalg.inv(T) @ np.array([
+        [scale*np.cos(angle), -np.sin(angle), trans_x],
+        [np.sin(angle), scale*np.cos(angle), trans_y],
+        [0, 0, 1]
+    ]) @ T
+    
+def get_similarity_transform_no_offset(scale, angle, trans_x, trans_y):
+    '''
+    Similarity transform (rotation, translation and scale in one).
+    '''
+    return np.array([
+        [scale*np.cos(angle), -np.sin(angle), trans_x],
+        [np.sin(angle), scale*np.cos(angle), trans_y],
+        [0, 0, 1]
+    ])
+
+def create_input_img(kps, img_name, apply_augmentation=False, sigma_input=20, sigma_label=5):
     '''
     Takes as input the img_name and keypoints to draw on them. Sigma is used for Gaussian smoothing.
     Returns two numpy array of shape (img_shape[0], img_shape[1], 10).
@@ -29,9 +56,35 @@ def create_input_img(kps, img_name, sigma_input=20, sigma_label=5):
     Next four channels are point data in order: wing_tips, wing_center, tower_top, tower_bottom
     Last three channels are line data in order: tower_bottom --> tower_top, tower_top --> wing_center, wing_center --> wing_tips
     '''
-    img = cv2.imread(f'./src/hourglass_network/data/all_data/{img_name}').astype(np.float32)/255.0
+    # Apply data augmentation if true
+    if apply_augmentation:
+        tmp_img = cv2.imread(f'./src/hourglass_network/data/all_data/{img_name}').astype(np.float32)/255.0
+        s_range = 0.4
+        a_range = np.deg2rad(15)
+        trans_range_x = tmp_img.shape[1] * 0.2
+        trans_range_y = tmp_img.shape[0] * 0.2
+        random_vals = np.random.rand(4)
+        s = 1 + (random_vals[0] * s_range) - s_range/2
+        a = random_vals[1] * a_range - a_range/2
+        trans_x = random_vals[2] * trans_range_x - trans_range_x/2
+        trans_y = random_vals[3] * trans_range_y - trans_range_y/2
+        similarity_transform = get_similarity_transform_with_offset(scale=s, angle=a, trans_x=trans_x, trans_y=trans_y, im_w=tmp_img.shape[1], im_h=tmp_img.shape[0])
+        #img = tf.warp(tmp_img, similarity_transform)
+        img = cv2.warpAffine(tmp_img, similarity_transform[:2,:], (tmp_img.shape[1], tmp_img.shape[0]))
+        # Also transform keypoints..
+        xs = [kp[0] for kp in kps]
+        ys = [kp[1] for kp in kps]
+        pts = np.array((xs, ys))
+        pts = np.vstack((pts, np.ones(shape=(1,pts.shape[1]))))
+        pts = similarity_transform @ pts
+        for i, kp in enumerate(kps):
+            kp[0] = round(pts[0,i])
+            kp[1] = round(pts[1,i])
+    else:
+        img = cv2.imread(f'./src/hourglass_network/data/all_data/{img_name}').astype(np.float32)/255.0
+    #show_keypoints_on_img(kps, img, show=True)
     kernel_size = 0    # From OpenCV formula. If set at 0, the kernel size is automatically calculated as 31 with sigma=5 based on sigma and vice versa if sigma = 0
-    # Random affine transform
+    # Random affine transform applied to input_img/prior
     transform = transforms.RandomAffine(degrees=2, translate=(0.05, 0.05), shear=2)
     # Data variables
     pt_data = [np.zeros((img.shape[0], img.shape[1]), dtype=np.float32) for i in range(4)]
@@ -45,7 +98,7 @@ def create_input_img(kps, img_name, sigma_input=20, sigma_label=5):
     
     kps.sort(key=lambda x: x[2])
     for kp in kps:
-        if kp[2].find('tmp') == -1:
+        if kp[2].find('tmp') == -1 and kp[0] > 0 and kp[0] < img.shape[1] and kp[1] > 0 and kp[1] < img.shape[0]:
             #print(kp)
             #print(index_dict.get(kp[2]))
             pt_data[index_dict.get(kp[2])][kp[1]-1,kp[0]-1] = 1.0
@@ -102,8 +155,8 @@ def create_input_img(kps, img_name, sigma_input=20, sigma_label=5):
     #plt.show()
     return input_img, label_img
 
-def show_keypoints_on_img(kps, img_name, show=False):
-    img = cv2.imread(f'./src/hourglass_network/data/all_data/{img_name}')
+def show_keypoints_on_img(kps, img, show=False):
+    #img = cv2.imread(f'./src/hourglass_network/data/all_data/{img_name}')
     kps.sort(key=lambda x: x[2])
     for kp in kps:
         if kp[2].find('tmp') == -1:
@@ -131,14 +184,14 @@ def get_annotations(path):
         annotations = json.load(f)
     return annotations
 
-def process_annotations(img):
+def process_annotations(img, apply_augmentation=False):
     '''
     Processes the annotations loaded with get_annotations().
     '''
     img_name = get_img_name(img)
     kps = get_kps(img)
     #show_keypoints_on_img(kps, img_name)
-    return create_input_img(kps, img_name)
+    return create_input_img(kps, img_name, apply_augmentation=apply_augmentation)
 
 def get_img_name(img):
     return img.get('img').split('-')[1]

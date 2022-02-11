@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
-from torchvision.transforms import Compose, ToTensor, CenterCrop, Resize
+from torchvision.transforms import Compose, ToTensor, CenterCrop, Resize, RandomCrop
 from torch.autograd import Variable
 
 from model import ConvEncoderDecoder
@@ -17,13 +17,14 @@ def show_output(self):
 def main():
     model = ConvEncoderDecoder(10)
     # Load model
-    checkpoint = torch.load('./src/hourglass_network/checkpoints/model_best_95.pt')
+    checkpoint = torch.load('./src/hourglass_network/checkpoints/model_best.pt')
     model.load_state_dict(checkpoint['state_dict'])
+    print('Loaded model. Number of epochs: {}'.format(checkpoint['epoch']))
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
     model.eval()
     # Get input image
-    annotations = preprocessing.get_annotations('./src/hourglass_network/data/annotations.json')
+    annotations = preprocessing.get_annotations('./src/hourglass_network/data/annotations_test.json')
     #img_name = preprocessing.get_img_name(annotations[0])
     #kps = preprocessing.get_kps(annotations[0])
     #preprocessing.show_keypoints_on_img(kps, img_name, show=True)
@@ -37,7 +38,7 @@ def main():
     
     # Run inference
     with torch.no_grad():
-        transform = Compose([ToTensor(), Resize((256,256))])
+        transform = Compose([ToTensor(), CenterCrop(256)])
         cropped_input_img = transform(input_img)
         # Expand dim such that shape is now (B, C, H, W) from (C, H, W)
         cropped_input_img = torch.unsqueeze(cropped_input_img,0)

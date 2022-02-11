@@ -5,7 +5,7 @@ import torch
 from torch.optim import Adam
 from torch.nn import BCELoss
 from torch.utils.data import DataLoader
-from torchvision.transforms import Compose, ToTensor, RandomCrop, Resize
+from torchvision.transforms import Compose, ToTensor, RandomCrop, Resize, CenterCrop
 import numpy as np
 import argparse
 import shutil
@@ -81,7 +81,7 @@ class Trainer:
         
     def train(self):
         # Run trainer
-        train_dataset = WindturbineDataset(f'{self.base_dir}/data/annotations.json', f'{self.base_dir}/data/all_data', transform=Compose([ToTensor(), Resize((256, 256))]))
+        train_dataset = WindturbineDataset(f'{self.base_dir}/data/annotations.json', f'{self.base_dir}/data/all_data', transform=Compose([ToTensor(), CenterCrop(256)]))
         train_dataloader = DataLoader(train_dataset, batch_size=16, shuffle=True)
         
         for self.epoch in tqdm(range(self.epoch+1, self.num_epochs+1)):

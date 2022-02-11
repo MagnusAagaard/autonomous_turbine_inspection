@@ -4,3 +4,4 @@ numpy >= 1.19.5
 pyrender >= 0.1.45
 matplotlib
 tqdm
+scikit-image
