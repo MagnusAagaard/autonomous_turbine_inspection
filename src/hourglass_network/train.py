@@ -139,7 +139,7 @@ class Trainer:
         self.train_set, self.val_set = random_split(dataset, [train_val_split, len(dataset)-train_val_split], generator=torch.Generator().manual_seed(42))
         print(f'Length of train dataset: {len(self.train_set)} \t Length of val dataset: {len(self.val_set)}')
         self.train_dataloader = DataLoader(self.train_set, batch_size=4, num_workers=8, shuffle=True)
-        self.val_dataloader = DataLoader(self.val_set, batch_size=4, num_workers=8, shuffle=False)
+        self.val_dataloader = DataLoader(self.val_set, batch_size=4, num_workers=4, shuffle=False)
         
         # Write model to TensorBoard
         input_to_model, _ = next(iter(self.train_set))
