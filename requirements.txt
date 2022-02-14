@@ -5,3 +5,5 @@ pyrender >= 0.1.45
 matplotlib
 tqdm
 scikit-image
+tensorboard
+setuptools==59.5.0
