@@ -79,7 +79,7 @@ class Trainer:
             #shutil.copyfile(filename_loc, best_filename_loc)
             
     def save(self, is_best):
-        print(f'Saving checkpoint for epoch {self.epoch}..')
+        #print(f'Saving checkpoint for epoch {self.epoch}..')
         self.save_checkpoint({
             'state_dict': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
@@ -172,11 +172,10 @@ class Trainer:
             if self.epoch % self.validate_interval == 0:
                 val_loss = self.evaluate()
                 if val_loss < self.lowest_loss:
-                    tqdm.write(f'New best model with loss: {val_loss}. Saving checkpoint for epoch {self.epoch}..')
+                    tqdm.write(f'New best model with loss: {val_loss} - Saving checkpoint for epoch {self.epoch}')
                     self.lowest_loss = val_loss
                     best = True
                     self.save(is_best=best)
-                    tqdm.write('Done!')
 
 def main():
     args = parse_command_line()
