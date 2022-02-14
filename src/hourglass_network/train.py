@@ -172,11 +172,11 @@ class Trainer:
             if self.epoch % self.validate_interval == 0:
                 val_loss = self.evaluate()
                 if val_loss < self.lowest_loss:
-                    tqdm.write(f'New best model with loss: {val_loss}. Saving checkpoint for epoch {self.epoch}..', end="")
+                    tqdm.write(f'New best model with loss: {val_loss}. Saving checkpoint for epoch {self.epoch}..')
                     self.lowest_loss = val_loss
                     best = True
                     self.save(is_best=best)
-                    tqdm.write(' Done!')
+                    tqdm.write('Done!')
 
 def main():
     args = parse_command_line()
