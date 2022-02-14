@@ -21,7 +21,7 @@ def parse_command_line():
         parser.add_argument('-e', '--epochs', type=int, default=500, help='max number of epochs')
         parser.add_argument('-r', '--resume', type=int, default=0, help='whether to resume training from a checkpoint. Provide epoch number.')
         parser.add_argument('-b', '--base_dir', type=str, default='./src/hourglass_network', help='base directory of model code')
-        parser.add_argument('-v', '--validate', type=int, default=1, help='number of epochs between model validation. Also saves best model when validating.')
+        parser.add_argument('-v', '--validate', type=int, default=2, help='number of epochs between model validation. Also saves best model when validating.')
         args = parser.parse_args()
         return args
 
@@ -61,6 +61,7 @@ class Trainer:
         self.model.load_state_dict(checkpoint['state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
         self.epoch = checkpoint['epoch']
+        self.lowest_loss = checkpoint['loss']
         print('Loaded checkpoint!')
         
     def save_checkpoint(self, state, is_best):
@@ -71,10 +72,11 @@ class Trainer:
         if not os.path.exists(basename):
             os.makedirs(basename)
         filename_loc = os.path.join(basename, f'checkpoint_{self.epoch}.pt')
-        torch.save(state, filename_loc)
         if is_best:
+            #torch.save(state, filename_loc)
             best_filename_loc = os.path.join(basename, 'model_best.pt')
-            shutil.copyfile(filename_loc, best_filename_loc)
+            torch.save(state, best_filename_loc)
+            #shutil.copyfile(filename_loc, best_filename_loc)
             
     def save(self, is_best):
         print(f'Saving checkpoint for epoch {self.epoch}..')
@@ -170,9 +172,11 @@ class Trainer:
             if self.epoch % self.validate_interval == 0:
                 val_loss = self.evaluate()
                 if val_loss < self.lowest_loss:
+                    tqdm.write(f'New best model with loss: {val_loss}. Saving checkpoint for epoch {self.epoch}..', end="")
                     self.lowest_loss = val_loss
                     best = True
-                self.save(is_best=best)
+                    self.save(is_best=best)
+                    tqdm.write(' Done!')
 
 def main():
     args = parse_command_line()
