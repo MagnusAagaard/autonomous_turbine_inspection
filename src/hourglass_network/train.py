@@ -19,7 +19,7 @@ from dataloader import WindturbineDataset
 def parse_command_line():
         parser = argparse.ArgumentParser()
         parser.add_argument('-e', '--epochs', type=int, default=500, help='max number of epochs')
-        parser.add_argument('-r', '--resume', type=int, default=0, help='whether to resume training from a checkpoint. Provide epoch number.')
+        parser.add_argument('-r', '--resume', type=bool, default=False, help='whether to resume training from a checkpoint (using model_best.pt)')
         parser.add_argument('-b', '--base_dir', type=str, default='./src/hourglass_network', help='base directory of model code')
         parser.add_argument('-v', '--validate', type=int, default=2, help='number of epochs between model validation. Also saves best model when validating.')
         args = parser.parse_args()
@@ -52,7 +52,7 @@ class Trainer:
         if not os.path.exists(checkpoint_dir):
             print(f'Checkpoint dir does not exist at {checkpoint_dir}, so can\'t resume training.')
             sys.exit(-1)
-        checkpoint_file = os.path.join(checkpoint_dir, f'checkpoint_{epoch}.pt')
+        checkpoint_file = os.path.join(checkpoint_dir, 'model_best.pt')
         if not os.path.isfile(checkpoint_file):
             print(f'No checkpoint file found at {checkpoint_file}')
             sys.exit(-1)
@@ -62,7 +62,7 @@ class Trainer:
         self.optimizer.load_state_dict(checkpoint['optimizer'])
         self.epoch = checkpoint['epoch']
         self.lowest_loss = checkpoint['loss']
-        print('Loaded checkpoint!')
+        print(f'Loaded checkpoint from epoch {self.epoch} with a loss of {self.lowest_loss}!')
         
     def save_checkpoint(self, state, is_best):
         """
@@ -136,12 +136,12 @@ class Trainer:
         
     def train(self):
         # Run trainer
-        dataset = WindturbineDataset(f'{self.base_dir}/data/annotations.json', f'{self.base_dir}/data/all_data', transform=Compose([ToTensor(), CenterCrop(256)]))
+        dataset = WindturbineDataset(f'{self.base_dir}/data/annotations_40.json', f'{self.base_dir}/data/all_data', transform=Compose([ToTensor(), CenterCrop(256)]))
         train_val_split = int(len(dataset)*0.8)
         self.train_set, self.val_set = random_split(dataset, [train_val_split, len(dataset)-train_val_split], generator=torch.Generator().manual_seed(42))
         print(f'Length of train dataset: {len(self.train_set)} \t Length of val dataset: {len(self.val_set)}')
-        self.train_dataloader = DataLoader(self.train_set, batch_size=4, num_workers=8, shuffle=True)
-        self.val_dataloader = DataLoader(self.val_set, batch_size=4, num_workers=4, shuffle=False)
+        self.train_dataloader = DataLoader(self.train_set, batch_size=16, num_workers=6, shuffle=True)
+        self.val_dataloader = DataLoader(self.val_set, batch_size=16, num_workers=2, shuffle=False)
         
         # Write model to TensorBoard
         input_to_model, _ = next(iter(self.train_set))
