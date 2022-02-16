@@ -18,7 +18,7 @@ from dataloader import WindturbineDataset
 
 def parse_command_line():
         parser = argparse.ArgumentParser()
-        parser.add_argument('-e', '--epochs', type=int, default=500, help='max number of epochs')
+        parser.add_argument('-e', '--epochs', type=int, default=1000, help='max number of epochs')
         parser.add_argument('-r', '--resume', type=bool, default=False, help='whether to resume training from a checkpoint (using model_best.pt)')
         parser.add_argument('-b', '--base_dir', type=str, default='./src/hourglass_network', help='base directory of model code')
         parser.add_argument('-v', '--validate', type=int, default=2, help='number of epochs between model validation. Also saves best model when validating.')
@@ -32,7 +32,7 @@ class Trainer:
         self.resume = args.resume
         self.base_dir = args.base_dir
         # TensorBoard writer
-        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_1')
+        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_2')
         # Use CUDA if available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = ConvEncoderDecoder(10)
@@ -136,7 +136,7 @@ class Trainer:
         
     def train(self):
         # Run trainer
-        dataset = WindturbineDataset(f'{self.base_dir}/data/annotations_40.json', f'{self.base_dir}/data/all_data', transform=Compose([ToTensor(), CenterCrop(256)]))
+        dataset = WindturbineDataset(f'{self.base_dir}/data/annotations_125.json', f'{self.base_dir}/data/all_data', train_transform=Compose([ToTensor(), CenterCrop(256)]), test_transform=Compose([ToTensor(), Resize(256), CenterCrop(256)]))
         train_val_split = int(len(dataset)*0.8)
         self.train_set, self.val_set = random_split(dataset, [train_val_split, len(dataset)-train_val_split], generator=torch.Generator().manual_seed(42))
         print(f'Length of train dataset: {len(self.train_set)} \t Length of val dataset: {len(self.val_set)}')
