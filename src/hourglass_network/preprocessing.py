@@ -59,13 +59,14 @@ def create_input_img(kps, img_name, apply_augmentation=False, sigma_input=20, si
     # Apply data augmentation if true
     if apply_augmentation:
         tmp_img = cv2.imread(f'./src/hourglass_network/data/all_data/{img_name}').astype(np.float32)/255.0
-        s_range = 0.4
+        s_range = 0.5
         a_range = np.deg2rad(20)
         # Translation max to edge of image using a crop of 256x256
         trans_range_x = tmp_img.shape[1] - 256/2
         trans_range_y = tmp_img.shape[0] - 256/2
         random_vals = np.random.rand(4)
-        s = 1 + (random_vals[0] * s_range) - s_range/2
+        #s = 1 + (random_vals[0] * s_range) - s_range/2
+        s = 1 - random_vals[0] * s_range
         a = random_vals[1] * a_range - a_range/2
         trans_x = random_vals[2] * trans_range_x - trans_range_x/2
         trans_y = random_vals[3] * trans_range_y - trans_range_y/2
