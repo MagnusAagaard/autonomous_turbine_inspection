@@ -47,7 +47,7 @@ def get_similarity_transform_no_offset(scale, angle, trans_x, trans_y):
         [0, 0, 1]
     ])
 
-def create_input_img(kps, img_name, apply_augmentation=False, sigma_input=20, sigma_label=5):
+def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_input=20, sigma_label=5):
     '''
     Takes as input the img_name and keypoints to draw on them. Sigma is used for Gaussian smoothing.
     Returns two numpy array of shape (img_shape[0], img_shape[1], 10).
@@ -56,9 +56,10 @@ def create_input_img(kps, img_name, apply_augmentation=False, sigma_input=20, si
     Next four channels are point data in order: wing_tips, wing_center, tower_top, tower_bottom
     Last three channels are line data in order: tower_bottom --> tower_top, tower_top --> wing_center, wing_center --> wing_tips
     '''
+    img_path = './src/hourglass_network/data/all_data/' if not test else './src/hourglass_network/data/test_data/'
     # Apply data augmentation if true
     if apply_augmentation:
-        tmp_img = cv2.imread(f'./src/hourglass_network/data/all_data/{img_name}').astype(np.float32)/255.0
+        tmp_img = cv2.imread(img_path + img_name).astype(np.float32)/255.0
         s_range = 0.5
         a_range = np.deg2rad(20)
         # Translation max to edge of image using a crop of 256x256
@@ -83,7 +84,7 @@ def create_input_img(kps, img_name, apply_augmentation=False, sigma_input=20, si
             kp[0] = round(pts[0,i])
             kp[1] = round(pts[1,i])
     else:
-        img = cv2.imread(f'./src/hourglass_network/data/all_data/{img_name}').astype(np.float32)/255.0
+        img = cv2.imread(img_path + img_name).astype(np.float32)/255.0
     #show_keypoints_on_img(kps, img, show=True)
     kernel_size = 0    # From OpenCV formula. If set at 0, the kernel size is automatically calculated as 31 with sigma=5 based on sigma and vice versa if sigma = 0
     # Random affine transform applied to input_img/prior
@@ -193,7 +194,10 @@ def process_annotations(img, apply_augmentation=False):
     img_name = get_img_name(img)
     kps = get_kps(img)
     #show_keypoints_on_img(kps, img_name)
-    return create_input_img(kps, img_name, apply_augmentation=apply_augmentation)
+    test = False
+    if img_name.find('test') != -1:
+        test = True
+    return create_input_img(kps, img_name, test=test, apply_augmentation=apply_augmentation)
 
 def get_img_name(img):
     return img.get('img').split('-')[1]
