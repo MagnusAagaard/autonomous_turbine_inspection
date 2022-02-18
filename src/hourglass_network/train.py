@@ -77,8 +77,10 @@ class Trainer:
             best_filename_loc = os.path.join(basename, 'model_best.pt')
             torch.save(state, best_filename_loc)
             #shutil.copyfile(filename_loc, best_filename_loc)
+        else:
+            torch.save(state, filename_loc)
             
-    def save(self, is_best):
+    def save(self, is_best,):
         #print(f'Saving checkpoint for epoch {self.epoch}..')
         self.save_checkpoint({
             'state_dict': self.model.state_dict(),
@@ -176,6 +178,8 @@ class Trainer:
                     self.lowest_loss = val_loss
                     best = True
                     self.save(is_best=best)
+        # Save last epoch no matter what
+        self.save(is_best=False)
 
 def main():
     args = parse_command_line()
