@@ -102,17 +102,20 @@ class ChamferMatcher:
         scores, best_xi = self.refine_optimization(best_xi)
         print(best_xi)
         # Show results
-        img_temp = copy(self.img_color)
+        #img_temp = copy(self.img_color)
         top_left = scores[1]
         bottom_right = scores[2]
         cv2.rectangle(self.img_color, top_left, bottom_right, 255, 2)
         self.render_new_template(best_xi)
         self.detect_edges()
+        
+        #img_temp[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]] = cv2.cvtColor(self.template_edges, cv2.COLOR_GRAY2RGB)
+        edges = np.argwhere(self.template_edges == 255)
+        for pt in edges:
+            self.img_color[top_left[1]+pt[0], top_left[0]+pt[1],:] = np.array([0,0,255])
+        #cv2.imshow('Image with template', img_temp)
         cv2.imshow('Template', self.template)
         cv2.imshow('Image', self.img_color)
-        
-        img_temp[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]] = cv2.cvtColor(self.template_edges, cv2.COLOR_GRAY2RGB)
-        cv2.imshow('Image with template', img_temp)
         
         plt.plot([score[0] for score in opt_scores[0]], label='Roll1')
         plt.plot([score[0] for score in opt_scores[1]], label='Yaw1')
