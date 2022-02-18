@@ -10,12 +10,19 @@ import preprocessing
 
 pt_threshold = 0.1
 
-def get_wing_tips(img, original_image_dims):
-    pts = []
+def upscale_pt(pt, original_image_dims):
     img_dim_y = original_image_dims[0]
     img_dim_x = original_image_dims[1]
+    scale_factor = img_dim_y/256.
+    trans_factor = (256.*img_dim_x/img_dim_y - 256)/2
+    x = int((pt[0] + trans_factor)*scale_factor)
+    y = int(pt[1]*scale_factor)
+    return [x,y]
+
+def get_wing_tips(img, original_image_dims, upscale=True):
+    pts = []
     wing_tips = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
-    _, wing_tips = cv2.threshold(wing_tips, 10,255, cv2.THRESH_BINARY)
+    _, wing_tips = cv2.threshold(wing_tips, int(pt_threshold*255), 255, cv2.THRESH_BINARY)
     contours, hierarchy = cv2.findContours(image=wing_tips, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
     contours_to_keep = sorted(contours, key=cv2.contourArea)[-3:]
     for c in contours_to_keep:
@@ -25,23 +32,28 @@ def get_wing_tips(img, original_image_dims):
         if max_val > pt_threshold:
             #cv2.imshow('Test', img[y1:y1+y2, x1:x1+x2])
             #cv2.waitKey(0)
-            x = int((pt[0] + x1 + (img_dim_x*256/img_dim_y - 256)/2) * img_dim_y/256)
-            y = int((pt[1] + y1) * img_dim_y/256)
-            pts.append([x,y])
+            x = pt[0] + x1
+            y = pt[1] + y1
+            if upscale:
+                pts.append(upscale_pt([x,y], original_image_dims))
+            else:
+                pts.append([int(x),int(y)])
     #cv2.imshow('Wing', img)
     #cv2.waitKey(0)
     return pts
 
-def get_pt_from_heatmap(img, original_image_dims):
-    img_dim_y = original_image_dims[0]
-    img_dim_x = original_image_dims[1]
+def get_pt_from_heatmap(img, original_image_dims, upscale=True):
     _,max_val,_,pt = cv2.minMaxLoc(img)
     #print(max_val, pt)
     if max_val > pt_threshold:
-        x = int((pt[0]+ (img_dim_x*256/img_dim_y - 256)/2) * img_dim_y/256)
-        y = int(pt[1] * img_dim_y/256)
-        return [x,y]
+        if upscale:
+            return upscale_pt(pt, original_image_dims)
+        return [int(pt[0]), int(pt[1])]
     return None
+
+def get_line_from_heatmap(img, original_image_dims, upscale=True):
+    cv2.imshow('Line', img)
+    cv2.waitKey(0)
 
 def main():
     model = ConvEncoderDecoder(10)
@@ -54,7 +66,7 @@ def main():
     model.eval()
     # Get input image
     annotations = preprocessing.get_annotations('./src/hourglass_network/data/annotations_test.json')
-    annotation_idx = 3
+    annotation_idx = 2
     img_name = preprocessing.get_img_name(annotations[annotation_idx])
     kps = preprocessing.get_kps(annotations[annotation_idx])
     test_img = cv2.imread(f'./src/hourglass_network/data/test_data/{img_name}')
@@ -91,22 +103,30 @@ def main():
     wing_center = output[:,:,4]
     tower_top = output[:,:,5]
     tower_bottom = output[:,:,6]
+    # Lines
     tower_bottom_to_tower_top = output[:,:,7]
     tower_top_to_wing_center = output[:,:,8]
     wing_center_to_wing_tips = output[:,:,9]
     
-    wing_tip_pts = get_wing_tips(wing_tips, original_image_dims=test_img.shape)
-    wing_center_pt = get_pt_from_heatmap(wing_center, original_image_dims=test_img.shape)
-    tower_top_pt = get_pt_from_heatmap(tower_top, original_image_dims=test_img.shape)
-    tower_bottom_pt = get_pt_from_heatmap(tower_bottom, original_image_dims=test_img.shape)
+    upscale = True
+    vis_img = img
+    # Project points to image
+    wing_tip_pts = get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=upscale)
+    wing_center_pt = get_pt_from_heatmap(wing_center, original_image_dims=test_img.shape, upscale=upscale)
+    tower_top_pt = get_pt_from_heatmap(tower_top, original_image_dims=test_img.shape, upscale=upscale)
+    tower_bottom_pt = get_pt_from_heatmap(tower_bottom, original_image_dims=test_img.shape, upscale=upscale)
     for pt in wing_tip_pts:
-        cv2.circle(img, pt, 5, (0,1,0), -1)
+        cv2.circle(vis_img, pt, 5, (0,1,0), -1)
     if wing_center_pt:
-        cv2.circle(img, wing_center_pt, 5, (1,0,0), -1)
+        cv2.circle(vis_img, wing_center_pt, 5, (1,0,0), -1)
     if tower_top_pt:
-        cv2.circle(img, tower_top_pt, 5, (0,0,1), -1)
+        cv2.circle(vis_img, tower_top_pt, 5, (0,0,1), -1)
     if tower_bottom_pt:
-        cv2.circle(img, tower_bottom_pt, 5, (1,1,0), -1)
+        cv2.circle(vis_img, tower_bottom_pt, 5, (1,1,0), -1)
+    
+    # Project lines to image
+    tower_bottom_to_tower_top_line = get_line_from_heatmap(tower_bottom_to_tower_top, original_image_dims=test_img.shape, upscale=upscale)
+    
     plt.figure(4)
     plt.imshow(wing_tips, cmap='gray')
     plt.figure(5)
