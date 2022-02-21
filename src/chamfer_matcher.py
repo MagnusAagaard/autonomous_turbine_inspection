@@ -69,7 +69,7 @@ class ChamferMatcher:
         #cv2.waitKey(5)
         return min_val, top_left, bottom_right
     
-    def run_optimization(self, init_est, max_iterations):
+    def run_optimization(self, init_est, max_iterations, show_plots=True):
         '''
         Function to run optimization. Generates rendered models and optimizes on the pose estimation
         based on a score given from chamfer matching. After rough estimation has been performed,
@@ -77,7 +77,8 @@ class ChamferMatcher:
         Input: initial pose estimate of wind turbine and max iterations before returning
         '''
         # Define ranges to search for on each side of init estimate
-        x_range = 15
+        x_range = 5
+        y_range = 1
         z_range = 0
         roll_range = 30
         yaw_range = 180
@@ -86,11 +87,11 @@ class ChamferMatcher:
         opt_scores = []
         best_xi = copy(init_est)
         # First optimize roll and yaw without x,y,z..
-        best_xi = self.optimize(opt_scores, best_xi, [x_range, 0, z_range, roll_range, yaw_range], index=3)
+        best_xi = self.optimize(opt_scores, best_xi, [x_range, y_range, z_range, roll_range, yaw_range], index=3)
         print(best_xi)
         # Run optimization. Stop if max_iterations is reached or change between parameters is small
         for i in range(max_iterations):
-            new_best_xi = self.optimize(opt_scores, best_xi, [x_range, 0, z_range, roll_range, yaw_range])
+            new_best_xi = self.optimize(opt_scores, best_xi, [x_range, y_range, z_range, roll_range, yaw_range])
             print(new_best_xi)
             if np.linalg.norm(np.asarray(best_xi)-np.asarray(new_best_xi)) < 5:
                 print(np.linalg.norm(np.asarray(best_xi)-np.asarray(new_best_xi)))
@@ -101,36 +102,39 @@ class ChamferMatcher:
         # Refine estimation
         scores, best_xi = self.refine_optimization(best_xi)
         print(best_xi)
-        # Show results
-        #img_temp = copy(self.img_color)
         top_left = scores[1]
         bottom_right = scores[2]
         cv2.rectangle(self.img_color, top_left, bottom_right, 255, 2)
         self.render_new_template(best_xi)
         self.detect_edges()
-        
-        #img_temp[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]] = cv2.cvtColor(self.template_edges, cv2.COLOR_GRAY2RGB)
         edges = np.argwhere(self.template_edges == 255)
         for pt in edges:
             self.img_color[top_left[1]+pt[0], top_left[0]+pt[1],:] = np.array([0,0,255])
-        #cv2.imshow('Image with template', img_temp)
-        cv2.imshow('Template', self.template)
-        cv2.imshow('Image', self.img_color)
-        
-        plt.plot([score[0] for score in opt_scores[0]], label='Roll1')
-        plt.plot([score[0] for score in opt_scores[1]], label='Yaw1')
-        plt.plot([score[0] for score in opt_scores[2]], label='X2')
-        plt.plot([score[0] for score in opt_scores[3]], label='Y2')
-        plt.plot([score[0] for score in opt_scores[4]], label='Z2')
-        plt.plot([score[0] for score in opt_scores[5]], label='Roll2')
-        plt.plot([score[0] for score in opt_scores[6]], label='Yaw2')
-        plt.legend()
-        plt.show()
-        
-        cv2.waitKey(0)
+        # Show results
+        #img_temp = copy(self.img_color)
+        if show_plots:
+            #img_temp[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]] = cv2.cvtColor(self.template_edges, cv2.COLOR_GRAY2RGB)
+            
+            #cv2.imshow('Image with template', img_temp)
+            cv2.imshow('Template', self.template)
+            cv2.imshow('Image', self.img_color)
+            
+            plt.plot([score[0] for score in opt_scores[0]], label='Roll1')
+            plt.plot([score[0] for score in opt_scores[1]], label='Yaw1')
+            plt.plot([score[0] for score in opt_scores[2]], label='X2')
+            plt.plot([score[0] for score in opt_scores[3]], label='Y2')
+            plt.plot([score[0] for score in opt_scores[4]], label='Z2')
+            plt.plot([score[0] for score in opt_scores[5]], label='Roll2')
+            plt.plot([score[0] for score in opt_scores[6]], label='Yaw2')
+            plt.legend()
+            #plt.show()
+            
+            #cv2.waitKey(0)
+        return best_xi, self.img_color.copy()
     
     def optimize(self, opt_scores, init_est, est_range, index=0):
         scores = []
+        step_size = 1 if index != 1 else 0.1
         current_min = 99999
         best_xi = copy(init_est)
         times_bigger_than_min = 0
@@ -141,9 +145,9 @@ class ChamferMatcher:
         self.detect_edges()
         f_old_xi = self.match()
         xi = copy(old_xi)
-        xi[index] += 1
+        xi[index] += step_size
         
-        for est in range(0, est_range[index]*2, 1):
+        for est in np.arange(0, est_range[index]*2, step_size):
             self.render_new_template(xi)
             self.detect_edges()
             f_xi = self.match()
@@ -151,7 +155,7 @@ class ChamferMatcher:
             dfx = (f_xi[0] - f_old_xi[0])
             old_xi = copy(xi)
             f_old_xi = f_xi
-            xi[index] += 1
+            xi[index] += step_size
             if f_xi[0] >= current_min:
                 times_bigger_than_min += 1
             else:
@@ -180,15 +184,17 @@ class ChamferMatcher:
         '''
         scores = []
         estimates = []
-        for x in range(params[0]+3, params[0]+5, 1):
-            print(x)
-            for z in range(params[2]-3, params[2]+3, 1):
-                for roll in range(params[3]-3, params[3]+3, 1):
-                    for yaw in range(params[4]-5, params[4]+1, 1):
-                        self.render_new_template([x,0,z,roll,yaw])
-                        self.detect_edges()
-                        scores.append(self.match())
-                        estimates.append([x,0,z,roll,yaw])
+        print(params)
+        for x in range(params[0]-3, params[0]+3, 1):
+            for y in np.arange(params[1] - 0.2, params[1] + 0.2, 0.1):
+                print(y)
+                for z in range(params[2]-2, params[2]+2, 1):
+                    for roll in range(params[3]-2, params[3]+2, 1):
+                        for yaw in range(params[4]-2, params[4]+2, 1):
+                            self.render_new_template([x,y,z,roll,yaw])
+                            self.detect_edges()
+                            scores.append(self.match())
+                            estimates.append([x,y,z,roll,yaw])
         
         idx = np.argmin(scores, axis=0)[0]
         return scores[idx], estimates[idx]
@@ -203,13 +209,13 @@ def main():
     
     # Base estimates: UAV located at tower height.
     # Wind turbine located directly in front in the middle of the image with wings oriented
-    init_x = -117
+    init_x = -100
     init_y = 0
     init_z = 74
     init_roll = 20
     init_yaw = 0
     init_est = [init_x, init_y, init_z, init_roll, init_yaw]
-    cm.run_optimization(init_est, 5)
+    best_estimate = cm.run_optimization(init_est, 5)
 
 if __name__ == "__main__":
     main()
