@@ -9,40 +9,79 @@ from std_msgs.msg import Bool
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped
 from skeletal_turbine_model import SkeletalTurbineModel
+from chamfer_matcher import ChamferMatcher
+from renderer import Renderer
 import utils
 
 class PoseEstimator:
     def __init__(self):
         # Init
+        self.stm = None
+        self.img = None
         self._init_subscribers()
         self.pose = PoseStamped()
         self.K = np.array([[554.920125, 0.000000, 320.077433], 
                      [0.000000, 554.921917, 239.661438], 
                      [0.000000, 0.000000, 1.000000]])
-        self.stm = SkeletalTurbineModel(c=(360, 0), h=65, omega=np.pi+0.0, r=10, phi=np.pi/2, b=60/2)
+        #self.stm = SkeletalTurbineModel(c=(360, 0), h=65, omega=np.pi+0.0, r=10, phi=np.pi/2, b=60/2)
         self.trigger_save = False
+        self.stm = None
+        self.render = Renderer(tower='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_tower.stl', 
+                               wings='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
+        self._init_skeleal_model()
 
     def _init_subscribers(self):
         # Setup subscribers
         self.img_sub = rospy.Subscriber('/mono_cam/image_raw', Image, self._image_cb)
         self.pose_sub = rospy.Subscriber("/mavros/local_position/pose", PoseStamped, self._pose_cb)
         self.trigger_sub = rospy.Subscriber('~trigger_image_save', Bool, self.__trigger_cb)
+    
+    def _init_skeleal_model(self):
+        while self.img is None:
+            rospy.sleep(0.1)
+        
+        print("Image recieved, estimating...")
+        img = self.img.copy()
+        estimated_dist = 100
+        print(f'Estimated distance: {estimated_dist}')
+        cm = ChamferMatcher(img, self.render)
+        # Base estimates: UAV located at tower height.
+        # Wind turbine located directly in front in the middle of the image with wings oriented
+        init_x = -estimated_dist
+        init_y = 0
+        init_z = 74
+        init_roll = 20
+        init_yaw = 0
+        init_est = [init_x, init_y, init_z, init_roll, init_yaw]
+        x = self.pose.pose.position.x
+        y = self.pose.pose.position.y
+        best_estimate, self.rst_img = cm.run_optimization(init_est, 5, show_plots=False)
+        x += -best_estimate[0]
+        y += best_estimate[1]
+        # We know there is 8m from MSL to bottom/where turbine is located
+        z = best_estimate[2] - 8 
+        roll = np.deg2rad(60 + best_estimate[3])
+        yaw = np.pi + np.deg2rad(best_estimate[4])
+        print(f'Estimates: ({x},{y},{z},{roll},{yaw})')
+        self.stm = SkeletalTurbineModel(c=(x,y), omega=yaw, phi=roll)
         
     def __trigger_cb(self, msg):
         self.trigger_save = msg.data
 
     def _image_cb(self, img_msg):
         # Image callback
-        self.img = numpify(img_msg)
-        self.img = cv2.cvtColor(self.img, cv2.COLOR_RGB2BGR)
-        if self.trigger_save:
-            rospy.loginfo('Saving image..')
-            cv2.imwrite('tmp_img.png', self.img)
-            self.trigger_save = False
-        cam_pose = self.get_extrensic_parameters()
-        self.stm.project_model_to_image(img=self.img, K=self.K, cam_pose=cam_pose)
-        cv2.imshow('Drone cam', self.img)
-        cv2.waitKey(3)
+            self.img = numpify(img_msg)
+            self.img = cv2.cvtColor(self.img, cv2.COLOR_RGB2BGR)
+            if self.trigger_save:
+                rospy.loginfo('Saving image..')
+                cv2.imwrite('tmp_img.png', self.img)
+                self.trigger_save = False
+            if self.stm:
+                cam_pose = self.get_extrensic_parameters()
+                self.stm.project_model_to_image(img=self.img, K=self.K, cam_pose=cam_pose)
+                cv2.imshow('Result image', self.rst_img)
+            cv2.imshow('Drone cam', self.img)
+            cv2.waitKey(3)
 
     def _pose_cb(self, pose_msg):
         # Pose callback
@@ -59,7 +98,6 @@ class PoseEstimator:
         # and the camera pose itself is then applied
         cam_pose = np.column_stack((Rex @ R, -Rex @ R @ t))
         return cam_pose
-        
 
 def main():
     rospy.init_node('pose_estimator', anonymous=True)
