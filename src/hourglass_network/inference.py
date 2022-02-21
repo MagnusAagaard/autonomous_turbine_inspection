@@ -51,9 +51,17 @@ def get_pt_from_heatmap(img, original_image_dims, upscale=True):
         return [int(pt[0]), int(pt[1])]
     return None
 
+def get_pt_from_heatmap_within_radius(img, pt, radius, original_image_dims, upscale=True):
+    mask = np.zeros(img.shape[:2], dtype=np.uint8)
+    cv2.circle(mask, (pt[0], pt[1]), radius, 255, -1)
+    masked = cv2.bitwise_and(img, img, mask=mask)
+    max_pt = np.flip(np.argwhere(masked == masked.max())[0])
+    if upscale:
+        return upscale_pt(max_pt, original_image_dims)
+    return max_pt
+
 def get_line_from_heatmap(img, original_image_dims, upscale=True):
-    cv2.imshow('Line', img)
-    cv2.waitKey(0)
+    pass
 
 def main():
     model = ConvEncoderDecoder(10)
@@ -66,7 +74,7 @@ def main():
     model.eval()
     # Get input image
     annotations = preprocessing.get_annotations('./src/hourglass_network/data/annotations_test.json')
-    annotation_idx = 2
+    annotation_idx = 8
     img_name = preprocessing.get_img_name(annotations[annotation_idx])
     kps = preprocessing.get_kps(annotations[annotation_idx])
     test_img = cv2.imread(f'./src/hourglass_network/data/test_data/{img_name}')
@@ -115,17 +123,34 @@ def main():
     wing_center_pt = get_pt_from_heatmap(wing_center, original_image_dims=test_img.shape, upscale=upscale)
     tower_top_pt = get_pt_from_heatmap(tower_top, original_image_dims=test_img.shape, upscale=upscale)
     tower_bottom_pt = get_pt_from_heatmap(tower_bottom, original_image_dims=test_img.shape, upscale=upscale)
-    for pt in wing_tip_pts:
-        cv2.circle(vis_img, pt, 5, (0,1,0), -1)
+    #for pt in wing_tip_pts:
+    #    cv2.circle(vis_img, pt, 5, (0,1,0), -1)
     if wing_center_pt:
         cv2.circle(vis_img, wing_center_pt, 5, (1,0,0), -1)
     if tower_top_pt:
         cv2.circle(vis_img, tower_top_pt, 5, (0,0,1), -1)
     if tower_bottom_pt:
         cv2.circle(vis_img, tower_bottom_pt, 5, (1,1,0), -1)
+    # Input points to find radius used to detect points..
+    max_pts = get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=upscale)
+    test_pts = get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=False)
+    print(max_pts)
+    print(int((300-101)/50))
+    print(int((300-100)/50))
+    print(int((300-99)/50))
+    
+    for pt in test_pts:
+        r = 10 + int((300-100)/50)
+        test_pt = get_pt_from_heatmap_within_radius(wing_tips, pt, r, test_img.shape, upscale=upscale)
+        cv2.circle(vis_img, test_pt, 3, (1,0,1), 1)
+    
+    #for pt in max_pts:
+    #    r = 10 + int((300-100)/50)
+    #    cv2.circle(vis_img, pt, r, (1,0,1), 1)
+        
     
     # Project lines to image
-    tower_bottom_to_tower_top_line = get_line_from_heatmap(tower_bottom_to_tower_top, original_image_dims=test_img.shape, upscale=upscale)
+    #tower_bottom_to_tower_top_line = get_line_from_heatmap(tower_bottom_to_tower_top, original_image_dims=test_img.shape, upscale=upscale)
     
     plt.figure(4)
     plt.imshow(wing_tips, cmap='gray')
