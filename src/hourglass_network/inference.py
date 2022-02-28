@@ -5,164 +5,192 @@ import matplotlib.pyplot as plt
 from torchvision.transforms import Compose, ToTensor, CenterCrop, Resize, RandomCrop
 from torch.autograd import Variable
 
-from model import ConvEncoderDecoder
-import preprocessing
+from hourglass_network.model import ConvEncoderDecoder
+import hourglass_network.preprocessing
+import timeit
 
-pt_threshold = 0.1
+class Inference:
+    def __init__(self, model_path):
+        self.pt_threshold = 0.1 
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        print(f'Device available for inference: {self.device}')
+        self.model = ConvEncoderDecoder(10)
+        self.__load_model(model_path)
+        
+    def __load_model(self, model_path):
+        # Load model
+        checkpoint = torch.load(model_path)
+        self.model.load_state_dict(checkpoint['state_dict'])
+        self.model.to(self.device)
+        self.model.eval()
+        print('Loaded model. Number of epochs: {}'.format(checkpoint['epoch']))
+        
+    def test_timing(self, annotation_idx):
+        annotations = preprocessing.get_annotations('./src/hourglass_network/data/annotations_test.json')
+        img_name = preprocessing.get_img_name(annotations[annotation_idx])
+        kps = preprocessing.get_kps(annotations[annotation_idx])
+        test_img = cv2.imread(f'./src/hourglass_network/data/test_data/{img_name}')
+        print('inference\t\t', timeit.timeit(lambda: self.forward(test_img, kps), number=300) / 300)
+        
+    def run_test(self, annotation_idx):
+        # Get annotations and load image + keypoints
+        annotations = preprocessing.get_annotations('./src/hourglass_network/data/annotations_test.json')
+        img_name = preprocessing.get_img_name(annotations[annotation_idx])
+        kps = preprocessing.get_kps(annotations[annotation_idx])
+        test_img = cv2.imread(f'./src/hourglass_network/data/test_data/{img_name}')
+        # Show keypoints on image
+        preprocessing.show_keypoints_on_img(kps, test_img, show=True)
+        # Get input image for network
+        input_img, label_img = preprocessing.process_annotations(annotations[annotation_idx])
+        img = input_img[:,:,:3].copy()
+        # Show label image points + lines
+        plt.figure(1)
+        plt.imshow(np.sum(label_img[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=1.0)
+        # Show input image points + lines (more Gaussian blur)
+        plt.figure(2)
+        plt.imshow(np.sum(input_img[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=1.0)
+        # Run inference
+        output, cropped_input_img = self.forward_test(input_img)
+        
+        cropped_img = cropped_input_img[:,:,:3].copy()
+        # Show output
+        plt.figure(3)
+        plt.imshow(np.sum(output[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=np.sum(output[:,:,3:].max()))
+        output_img = output[:,:,:3]
+        # Points
+        wing_tips = output[:,:,3]
+        wing_center = output[:,:,4]
+        tower_top = output[:,:,5]
+        tower_bottom = output[:,:,6]
+        # Lines
+        tower_bottom_to_tower_top = output[:,:,7]
+        tower_top_to_wing_center = output[:,:,8]
+        wing_center_to_wing_tips = output[:,:,9]
+        
+        upscale = True
+        vis_img = img
+        # Project points to image
+        wing_tip_pts = self.get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=upscale)
+        wing_center_pt = self.get_pt_from_heatmap(wing_center, original_image_dims=test_img.shape, upscale=upscale)
+        tower_top_pt = self.get_pt_from_heatmap(tower_top, original_image_dims=test_img.shape, upscale=upscale)
+        tower_bottom_pt = self.get_pt_from_heatmap(tower_bottom, original_image_dims=test_img.shape, upscale=upscale)
+        #for pt in wing_tip_pts:
+        #    cv2.circle(vis_img, pt, 5, (0,1,0), -1)
+        if wing_center_pt:
+            cv2.circle(vis_img, wing_center_pt, 5, (1,0,0), -1)
+        if tower_top_pt:
+            cv2.circle(vis_img, tower_top_pt, 5, (0,0,1), -1)
+        if tower_bottom_pt:
+            cv2.circle(vis_img, tower_bottom_pt, 5, (1,1,0), -1)
+        # Input points to find radius used to detect points..
+        max_pts = self.get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=upscale)
+        test_pts = self.get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=False)
+        print(max_pts)
+        
+        for pt in test_pts:
+            r = 10 + int((300-100)/50)
+            test_pt = self.get_pt_from_heatmap_within_radius(wing_tips, pt, r, test_img.shape, upscale=upscale)
+            cv2.circle(vis_img, test_pt, 3, (1,0,1), 1)
+        # Output wing tips and wing center 
+        plt.figure(4)
+        plt.imshow(wing_tips, cmap='gray')
+        plt.figure(5)
+        plt.imshow(wing_center, cmap='gray')
+        # Show results
+        cv2.imshow('img',img)
+        cv2.imshow('Output_img', output_img)
+        cv2.imshow('Cropped img', cropped_img)
+        plt.show()
+        
+    def forward_test(self, input_img):
+        # Run inference
+        with torch.no_grad():
+            transform = Compose([ToTensor(), Resize(256), CenterCrop(256)])
+            cropped_input_img = transform(input_img)
+            # Expand dim such that shape is now (B, C, H, W) from (C, H, W)
+            cropped_input_img = torch.unsqueeze(cropped_input_img,0)
+            cropped_input_img = Variable(cropped_input_img.to(self.device))
+            output = self.model(cropped_input_img)
+            # Remove expanded dim, move to cpu and numpyfi
+            output = torch.squeeze(output).cpu().numpy().transpose(1,2,0)
+            cropped_input_img = torch.squeeze(cropped_input_img).cpu().numpy().transpose(1,2,0)
+            return output, cropped_input_img
+        
+    def forward(self, input_img, kps):
+        # Transform input img with Gaussian + lines and kps
+        input_img = preprocessing.create_simple_input_img(kps, input_img, sigma=20)
+        # Run inference
+        with torch.no_grad():
+            transform = Compose([ToTensor(), Resize(256), CenterCrop(256)])
+            cropped_input_img = transform(input_img)
+            # Expand dim such that shape is now (B, C, H, W) from (C, H, W)
+            cropped_input_img = torch.unsqueeze(cropped_input_img,0)
+            cropped_input_img = Variable(cropped_input_img.to(self.device))
+            output = self.model(cropped_input_img)
+            # Remove expanded dim, move to cpu and numpyfi
+            output = torch.squeeze(output).cpu().numpy().transpose(1,2,0)
+            return output
+        
 
-def upscale_pt(pt, original_image_dims):
-    img_dim_y = original_image_dims[0]
-    img_dim_x = original_image_dims[1]
-    scale_factor = img_dim_y/256.
-    trans_factor = (256.*img_dim_x/img_dim_y - 256)/2
-    x = int((pt[0] + trans_factor)*scale_factor)
-    y = int(pt[1]*scale_factor)
-    return [x,y]
+    def upscale_pt(self, pt, original_image_dims):
+        img_dim_y = original_image_dims[0]
+        img_dim_x = original_image_dims[1]
+        scale_factor = img_dim_y/256.
+        trans_factor = (256.*img_dim_x/img_dim_y - 256)/2
+        x = int((pt[0] + trans_factor)*scale_factor)
+        y = int(pt[1]*scale_factor)
+        return [x,y]
 
-def get_wing_tips(img, original_image_dims, upscale=True):
-    pts = []
-    wing_tips = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
-    _, wing_tips = cv2.threshold(wing_tips, int(pt_threshold*255), 255, cv2.THRESH_BINARY)
-    contours, hierarchy = cv2.findContours(image=wing_tips, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
-    contours_to_keep = sorted(contours, key=cv2.contourArea)[-3:]
-    for c in contours_to_keep:
-        x1, y1, x2, y2 = cv2.boundingRect(c)
-        #cv2.rectangle(img, (x1,y1),(x1+x2,y1+y2), 0.5, 2)
-        _,max_val,_, pt = cv2.minMaxLoc(img[y1:y1+y2,x1:x1+x2])
-        if max_val > pt_threshold:
-            #cv2.imshow('Test', img[y1:y1+y2, x1:x1+x2])
-            #cv2.waitKey(0)
-            x = pt[0] + x1
-            y = pt[1] + y1
+    def get_wing_tips(self, img, original_image_dims, upscale=True):
+        pts = []
+        wing_tips = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8UC1)
+        _, wing_tips = cv2.threshold(wing_tips, int(self.pt_threshold*255), 255, cv2.THRESH_BINARY)
+        contours, hierarchy = cv2.findContours(image=wing_tips, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_NONE)
+        contours_to_keep = sorted(contours, key=cv2.contourArea)[-3:]
+        for c in contours_to_keep:
+            x1, y1, x2, y2 = cv2.boundingRect(c)
+            #cv2.rectangle(img, (x1,y1),(x1+x2,y1+y2), 0.5, 2)
+            _,max_val,_, pt = cv2.minMaxLoc(img[y1:y1+y2,x1:x1+x2])
+            if max_val > self.pt_threshold:
+                #cv2.imshow('Test', img[y1:y1+y2, x1:x1+x2])
+                #cv2.waitKey(0)
+                x = pt[0] + x1
+                y = pt[1] + y1
+                if upscale:
+                    pts.append(self.upscale_pt([x,y], original_image_dims))
+                else:
+                    pts.append([int(x),int(y)])
+        #cv2.imshow('Wing', img)
+        #cv2.waitKey(0)
+        return pts
+
+    def get_pt_from_heatmap(self, img, original_image_dims, upscale=True):
+        _,max_val,_,pt = cv2.minMaxLoc(img)
+        #print(max_val, pt)
+        if max_val > self.pt_threshold:
             if upscale:
-                pts.append(upscale_pt([x,y], original_image_dims))
-            else:
-                pts.append([int(x),int(y)])
-    #cv2.imshow('Wing', img)
-    #cv2.waitKey(0)
-    return pts
+                return self.upscale_pt(pt, original_image_dims)
+            return [int(pt[0]), int(pt[1])]
+        return None
 
-def get_pt_from_heatmap(img, original_image_dims, upscale=True):
-    _,max_val,_,pt = cv2.minMaxLoc(img)
-    #print(max_val, pt)
-    if max_val > pt_threshold:
+    def get_pt_from_heatmap_within_radius(self, img, pt, radius, original_image_dims, upscale=True):
+        mask = np.zeros(img.shape[:2], dtype=np.uint8)
+        cv2.circle(mask, (pt[0], pt[1]), radius, 255, -1)
+        masked = cv2.bitwise_and(img, img, mask=mask)
+        max_pt = np.flip(np.argwhere(masked == masked.max())[0])
         if upscale:
-            return upscale_pt(pt, original_image_dims)
-        return [int(pt[0]), int(pt[1])]
-    return None
+            return self.upscale_pt(max_pt, original_image_dims)
+        return max_pt
 
-def get_pt_from_heatmap_within_radius(img, pt, radius, original_image_dims, upscale=True):
-    mask = np.zeros(img.shape[:2], dtype=np.uint8)
-    cv2.circle(mask, (pt[0], pt[1]), radius, 255, -1)
-    masked = cv2.bitwise_and(img, img, mask=mask)
-    max_pt = np.flip(np.argwhere(masked == masked.max())[0])
-    if upscale:
-        return upscale_pt(max_pt, original_image_dims)
-    return max_pt
-
-def get_line_from_heatmap(img, original_image_dims, upscale=True):
-    pass
+    def get_line_from_heatmap(self, img, original_image_dims, upscale=True):
+        pass
 
 def main():
-    model = ConvEncoderDecoder(10)
-    # Load model
-    checkpoint = torch.load('./src/hourglass_network/checkpoints/run2/model_best.pt')
-    model.load_state_dict(checkpoint['state_dict'])
-    print('Loaded model. Number of epochs: {}'.format(checkpoint['epoch']))
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model.to(device)
-    model.eval()
     # Get input image
-    annotations = preprocessing.get_annotations('./src/hourglass_network/data/annotations_test.json')
-    annotation_idx = 8
-    img_name = preprocessing.get_img_name(annotations[annotation_idx])
-    kps = preprocessing.get_kps(annotations[annotation_idx])
-    test_img = cv2.imread(f'./src/hourglass_network/data/test_data/{img_name}')
-    img_dim_x = test_img.shape[1]
-    img_dim_y = test_img.shape[0]
-    preprocessing.show_keypoints_on_img(kps, test_img, show=True)
-    input_img, label_img = preprocessing.process_annotations(annotations[annotation_idx])
-    img = input_img[:,:,:3].copy()
-    plt.figure(1)
-    plt.imshow(np.sum(label_img[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=1.0)
-    plt.figure(2)
-    plt.imshow(np.sum(input_img[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=1.0)
-    
-    
-    # Run inference
-    with torch.no_grad():
-        transform = Compose([ToTensor(), Resize(256), CenterCrop(256)])
-        cropped_input_img = transform(input_img)
-        # Expand dim such that shape is now (B, C, H, W) from (C, H, W)
-        cropped_input_img = torch.unsqueeze(cropped_input_img,0)
-        cropped_input_img = Variable(cropped_input_img.to(device))
-        output = model(cropped_input_img)
-        # Remove expanded dim, move to cpu and numpyfi
-        output = torch.squeeze(output).cpu().numpy().transpose(1,2,0)
-    cropped_img_data = torch.squeeze(cropped_input_img).cpu().numpy().transpose(1,2,0)
-    cropped_img = cropped_img_data[:,:,:3].copy()
-    
-    # Show output
-    plt.figure(3)
-    plt.imshow(np.sum(output[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=np.sum(output[:,:,3:].max()))
-    output_img = output[:,:,:3]
-    # Points
-    wing_tips = output[:,:,3]
-    wing_center = output[:,:,4]
-    tower_top = output[:,:,5]
-    tower_bottom = output[:,:,6]
-    # Lines
-    tower_bottom_to_tower_top = output[:,:,7]
-    tower_top_to_wing_center = output[:,:,8]
-    wing_center_to_wing_tips = output[:,:,9]
-    
-    upscale = True
-    vis_img = img
-    # Project points to image
-    wing_tip_pts = get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=upscale)
-    wing_center_pt = get_pt_from_heatmap(wing_center, original_image_dims=test_img.shape, upscale=upscale)
-    tower_top_pt = get_pt_from_heatmap(tower_top, original_image_dims=test_img.shape, upscale=upscale)
-    tower_bottom_pt = get_pt_from_heatmap(tower_bottom, original_image_dims=test_img.shape, upscale=upscale)
-    #for pt in wing_tip_pts:
-    #    cv2.circle(vis_img, pt, 5, (0,1,0), -1)
-    if wing_center_pt:
-        cv2.circle(vis_img, wing_center_pt, 5, (1,0,0), -1)
-    if tower_top_pt:
-        cv2.circle(vis_img, tower_top_pt, 5, (0,0,1), -1)
-    if tower_bottom_pt:
-        cv2.circle(vis_img, tower_bottom_pt, 5, (1,1,0), -1)
-    # Input points to find radius used to detect points..
-    max_pts = get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=upscale)
-    test_pts = get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=False)
-    print(max_pts)
-    print(int((300-101)/50))
-    print(int((300-100)/50))
-    print(int((300-99)/50))
-    
-    for pt in test_pts:
-        r = 10 + int((300-100)/50)
-        test_pt = get_pt_from_heatmap_within_radius(wing_tips, pt, r, test_img.shape, upscale=upscale)
-        cv2.circle(vis_img, test_pt, 3, (1,0,1), 1)
-    
-    #for pt in max_pts:
-    #    r = 10 + int((300-100)/50)
-    #    cv2.circle(vis_img, pt, r, (1,0,1), 1)
-        
-    
-    # Project lines to image
-    #tower_bottom_to_tower_top_line = get_line_from_heatmap(tower_bottom_to_tower_top, original_image_dims=test_img.shape, upscale=upscale)
-    
-    plt.figure(4)
-    plt.imshow(wing_tips, cmap='gray')
-    plt.figure(5)
-    plt.imshow(wing_center, cmap='gray')
-    
-    #plt.imshow(np.sum(cropped_img_data[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=1.0)
-    cv2.imshow('img',img)
-    cv2.imshow('Output_img', output_img)
-    cv2.imshow('Cropped img', cropped_img)
-    
-    plt.show()
+    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run2/model_best.pt')
+    annotation_idx = 2
+    inferencer.test_timing(annotation_idx)
+    #inferencer.run_test(annotation_idx)
 
 if __name__ == "__main__":
     main()
