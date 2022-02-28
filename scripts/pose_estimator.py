@@ -11,6 +11,7 @@ from geometry_msgs.msg import PoseStamped
 from skeletal_turbine_model import SkeletalTurbineModel
 from chamfer_matcher import ChamferMatcher
 from renderer import Renderer
+from hourglass_network.inference import Inference
 import utils
 
 class PoseEstimator:
@@ -25,10 +26,11 @@ class PoseEstimator:
                      [0.000000, 0.000000, 1.000000]])
         #self.stm = SkeletalTurbineModel(c=(360, 0), h=65, omega=np.pi+0.0, r=10, phi=np.pi/2, b=60/2)
         self.trigger_save = False
+        self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run2/model_best.pt')
         self.stm = None
         self.render = Renderer(tower='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_tower.stl', 
                                wings='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
-        self._init_skeleal_model()
+        self._init_skeletal_model()
 
     def _init_subscribers(self):
         # Setup subscribers
@@ -36,7 +38,7 @@ class PoseEstimator:
         self.pose_sub = rospy.Subscriber("/mavros/local_position/pose", PoseStamped, self._pose_cb)
         self.trigger_sub = rospy.Subscriber('~trigger_image_save', Bool, self.__trigger_cb)
     
-    def _init_skeleal_model(self):
+    def _init_skeletal_model(self):
         while self.img is None:
             rospy.sleep(0.1)
         
@@ -78,8 +80,9 @@ class PoseEstimator:
                 self.trigger_save = False
             if self.stm:
                 cam_pose = self.get_extrensic_parameters()
-                self.stm.project_model_to_image(img=self.img, K=self.K, cam_pose=cam_pose)
-                cv2.imshow('Result image', self.rst_img)
+                kps = self.stm.project_model_to_image(img=self.img, K=self.K, cam_pose=cam_pose)
+                
+                #cv2.imshow('Result image', self.rst_img)
             cv2.imshow('Drone cam', self.img)
             cv2.waitKey(3)
 
