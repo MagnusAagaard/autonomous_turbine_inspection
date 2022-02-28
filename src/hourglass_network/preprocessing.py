@@ -47,6 +47,47 @@ def get_similarity_transform_no_offset(scale, angle, trans_x, trans_y):
         [0, 0, 1]
     ])
 
+def create_simple_input_img(kps, img, sigma):
+    '''
+    Takes an input image (full image) and keypoints and applies Gaussian kernel with sigma onto the image.
+    Returns the 10-channel image used during inference
+    Kps: wing_tips, wing_center, tower_top, tower_bottom
+    
+    '''
+    kernel_size = 0    # From OpenCV formula. If set at 0, the kernel size is automatically calculated as 31 with sigma=5 based on sigma and vice versa if sigma = 0
+    pt_data = [np.zeros((img.shape[0], img.shape[1]), dtype=np.float32) for i in range(4)]
+    line_data = [np.zeros((img.shape[0], img.shape[1]), dtype=np.float32) for i in range(3)]
+    input_img = np.zeros((img.shape[0], img.shape[1], 10), dtype=np.float32)
+    input_img[:,:,:3] = np.copy(img)
+    
+    for kp in kps[:3]:
+        if kp[0] > 0 and kp[0] < img.shape[1] and kp[1] > 0 and kp[1] < img.shape[0]:
+            pt_data[0][kp[1]-1,kp[0]-1] = 1.0
+    
+    for i, kp in enumerate(kps[3:]):
+        if kp[0] > 0 and kp[0] < img.shape[1] and kp[1] > 0 and kp[1] < img.shape[0]:
+            pt_data[i+1][kp[1]-1,kp[0]-1] = 1.0
+    # Save labelled point data in numpy array
+    for i, pts in enumerate(pt_data):
+        input_img[:,:,3+i] = np.copy(pts)
+    # Draw sorted keypoints on label image
+    # tower_bottom --> tower_top
+    cv2.line(line_data[0], kps[0][:2], kps[1][:2], 1.0, 1)
+    # tower_top --> wing_center
+    cv2.line(line_data[1], kps[1][:2], kps[2][:2], 1.0, 1)
+    # wing_center --> wing_tips
+    cv2.line(line_data[2], kps[2][:2], kps[3][:2], 1.0, 1)
+    cv2.line(line_data[2], kps[2][:2], kps[4][:2], 1.0, 1)
+    cv2.line(line_data[2], kps[2][:2], kps[5][:2], 1.0, 1)
+    for i, lines in enumerate(line_data):
+        input_img[:,:,3+len(pt_data)+i] = np.copy(lines)
+    # Apply Gaussian blur on input image and renormalize values 0-1
+    for i in range(3, input_img.shape[2]):
+        if input_img[:,:,i].max() != 0.0:
+            input_img[:,:,i] = cv2.GaussianBlur(input_img[:,:,i], (kernel_size, kernel_size), sigma)
+            input_img[:,:,i] *= 1.0/input_img[:,:,i].max()
+    return input_img
+
 def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_input=20, sigma_label=5):
     '''
     Takes as input the img_name and keypoints to draw on them. Sigma is used for Gaussian smoothing.
