@@ -6,7 +6,7 @@ from torchvision.transforms import Compose, ToTensor, CenterCrop, Resize, Random
 from torch.autograd import Variable
 
 from hourglass_network.model import ConvEncoderDecoder
-import hourglass_network.preprocessing
+from hourglass_network import preprocessing
 import timeit
 
 class Inference:
@@ -131,13 +131,21 @@ class Inference:
             output = torch.squeeze(output).cpu().numpy().transpose(1,2,0)
             return output
         
-
     def upscale_pt(self, pt, original_image_dims):
         img_dim_y = original_image_dims[0]
         img_dim_x = original_image_dims[1]
         scale_factor = img_dim_y/256.
         trans_factor = (256.*img_dim_x/img_dim_y - 256)/2
         x = int((pt[0] + trans_factor)*scale_factor)
+        y = int(pt[1]*scale_factor)
+        return [x,y]
+    
+    def downscale_pt(self, pt, original_image_dims):
+        img_dim_y = original_image_dims[0]
+        img_dim_x = original_image_dims[1]
+        scale_factor=256./img_dim_y
+        trans_factor = (256.*img_dim_x/img_dim_y - 256)/2
+        x = int((pt[0]*scale_factor) - trans_factor)
         y = int(pt[1]*scale_factor)
         return [x,y]
 
