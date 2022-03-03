@@ -24,13 +24,13 @@ class PoseEstimator:
         self.K = np.array([[554.920125, 0.000000, 320.077433], 
                      [0.000000, 554.921917, 239.661438], 
                      [0.000000, 0.000000, 1.000000]])
-        #self.stm = SkeletalTurbineModel(c=(360, 0), h=65, omega=np.pi+0.0, r=10, phi=np.pi/2, b=60/2)
+        self.stm = None
         self.trigger_save = False
         self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run2/model_best.pt')
-        self.stm = None
         self.render = Renderer(tower='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_tower.stl', 
                                wings='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
-        self._init_skeletal_model()
+        self.stm = SkeletalTurbineModel(c=(360, 0), h=71.74-8, omega=np.pi+np.deg2rad(45), phi=np.pi/2)
+        #self._init_skeletal_model()
 
     def _init_subscribers(self):
         # Setup subscribers
@@ -80,10 +80,16 @@ class PoseEstimator:
                 self.trigger_save = False
             if self.stm:
                 cam_pose = self.get_extrensic_parameters()
-                kps = self.stm.project_model_to_image(img=input_img, K=self.K, cam_pose=cam_pose)
+                kps, lines_divided_2d = self.stm.project_model_to_image(img=input_img, K=self.K, cam_pose=cam_pose)
                 #TODO: Use inference class to run model to project points to image
                 output = self.inferencer.forward(input_img, kps)
-                cv2.imshow('Output', output[:,:,3])
+                cv2.imshow('Outputpt1', output[:,:,3])
+                cv2.imshow('Outputpt2', output[:,:,4])
+                cv2.imshow('Outputpt3', output[:,:,5])
+                cv2.imshow('Outputpt4', output[:,:,6])
+                cv2.imshow('Outputl1', output[:,:,7])
+                cv2.imshow('Outputl2', output[:,:,8])
+                cv2.imshow('Outputl3', output[:,:,9])
                 # Wing tips
                 for pt in kps[:3]:
                     pt = self.inferencer.downscale_pt(pt, input_img.shape)
@@ -94,6 +100,36 @@ class PoseEstimator:
                     pt = self.inferencer.downscale_pt(pt, input_img.shape)
                     test_pt = self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,4+i], pt, 14, input_img.shape, upscale=True)
                     cv2.circle(input_img, test_pt, 3, (0,0,255), 1)
+                # Lines
+                for i, line in enumerate(lines_divided_2d[:2]):
+                    # Vector from first pt to last pt (line vector)
+                    v = line[-1] - line[0]
+                    # Unit vector
+                    unit_v = v/np.linalg.norm(v)
+                    # Vector perpendicular to line
+                    unit_v_perp = np.array([unit_v[1], -unit_v[0]])
+                    for pt in line:
+                        #pt1 = (int(pt[0] - 5*unit_v_perp[0]), int(pt[1] - 5*unit_v_perp[1]))
+                        #pt2 = (int(pt[0] + 5*unit_v_perp[0]), int(pt[1] + 5*unit_v_perp[1]))
+                        #cv2.line(input_img, pt1, pt2, (255,0,0), 2)
+                        pt = self.inferencer.downscale_pt(pt, input_img.shape)
+                        test_pt = self.inferencer.get_line_from_heatmap(output[:,:,7+i], pt, unit_v_perp, 5, input_img.shape, upscale=True)
+                        cv2.circle(input_img, test_pt, 3, (0,255,0), 1)
+                for line in lines_divided_2d[2:]:
+                    # Vector from first pt to last pt (line vector)
+                    v = line[-1] - line[0]
+                    # Unit vector
+                    unit_v = v/np.linalg.norm(v)
+                    # Vector perpendicular to line
+                    unit_v_perp = np.array([unit_v[1], -unit_v[0]])
+                    for pt in line:
+                        #pt1 = (int(pt[0] - 5*unit_v_perp[0]), int(pt[1] - 5*unit_v_perp[1]))
+                        #pt2 = (int(pt[0] + 5*unit_v_perp[0]), int(pt[1] + 5*unit_v_perp[1]))
+                        #cv2.line(input_img, pt1, pt2, (255,0,0), 2)
+                        pt = self.inferencer.downscale_pt(pt, input_img.shape)
+                        test_pt = self.inferencer.get_line_from_heatmap(output[:,:,9], pt, unit_v_perp, 5, input_img.shape, upscale=True)
+                        cv2.circle(input_img, test_pt, 3, (0,255,0), 1)
+                    
                 #cv2.imshow('Result image', self.rst_img)
             cv2.imshow('Drone cam', self.img)
             cv2.imshow('Pose cam', input_img)
