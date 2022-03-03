@@ -58,7 +58,7 @@ def create_simple_input_img(kps, img, sigma):
     pt_data = [np.zeros((img.shape[0], img.shape[1]), dtype=np.float32) for i in range(4)]
     line_data = [np.zeros((img.shape[0], img.shape[1]), dtype=np.float32) for i in range(3)]
     input_img = np.zeros((img.shape[0], img.shape[1], 10), dtype=np.float32)
-    input_img[:,:,:3] = np.copy(img)
+    input_img[:,:,:3] = np.copy(img.astype(np.float32)/255.0)
     
     for kp in kps[:3]:
         if kp[0] > 0 and kp[0] < img.shape[1] and kp[1] > 0 and kp[1] < img.shape[0]:
