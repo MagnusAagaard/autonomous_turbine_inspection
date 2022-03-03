@@ -123,6 +123,8 @@ class Inference:
         with torch.no_grad():
             transform = Compose([ToTensor(), Resize(256), CenterCrop(256)])
             cropped_input_img = transform(input_img)
+            f_input = cropped_input_img.numpy().transpose(1,2,0)
+            cv2.imshow('input_img', f_input[:,:,:3])
             # Expand dim such that shape is now (B, C, H, W) from (C, H, W)
             cropped_input_img = torch.unsqueeze(cropped_input_img,0)
             cropped_input_img = Variable(cropped_input_img.to(self.device))
@@ -190,8 +192,20 @@ class Inference:
             return self.upscale_pt(max_pt, original_image_dims)
         return max_pt
 
-    def get_line_from_heatmap(self, img, original_image_dims, upscale=True):
-        pass
+    def get_line_from_heatmap(self, img, pt, perp_uvec, dist, original_image_dims, upscale=True):
+        '''
+        Search for highest value along perpenducilar unit vector from pt in img.
+        Dist indicates the distance to search for in each direction
+        '''
+        mask = np.zeros(img.shape[:2], dtype=np.uint8)
+        pt1 = (int(pt[0] - dist*perp_uvec[0]), int(pt[1] - dist*perp_uvec[1]))
+        pt2 = (int(pt[0] + dist*perp_uvec[0]), int(pt[1] + dist*perp_uvec[1]))
+        cv2.line(mask, pt1, pt2, 255, 1)
+        masked = cv2.bitwise_and(img, img, mask=mask)
+        max_pt = np.flip(np.argwhere(masked == masked.max())[0])
+        if upscale:
+            return self.upscale_pt(max_pt, original_image_dims)
+        return max_pt
 
 def main():
     # Get input image
