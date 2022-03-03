@@ -72,18 +72,31 @@ class PoseEstimator:
 
     def _image_cb(self, img_msg):
         # Image callback
-            self.img = numpify(img_msg)
-            self.img = cv2.cvtColor(self.img, cv2.COLOR_RGB2BGR)
+            self.img = cv2.cvtColor(numpify(img_msg), cv2.COLOR_RGB2BGR)
+            input_img = self.img.copy()
             if self.trigger_save:
                 rospy.loginfo('Saving image..')
                 cv2.imwrite('tmp_img.png', self.img)
                 self.trigger_save = False
             if self.stm:
                 cam_pose = self.get_extrensic_parameters()
-                kps = self.stm.project_model_to_image(img=self.img, K=self.K, cam_pose=cam_pose)
-                
+                kps = self.stm.project_model_to_image(img=input_img, K=self.K, cam_pose=cam_pose)
+                #TODO: Use inference class to run model to project points to image
+                output = self.inferencer.forward(input_img, kps)
+                cv2.imshow('Output', output[:,:,3])
+                # Wing tips
+                for pt in kps[:3]:
+                    pt = self.inferencer.downscale_pt(pt, input_img.shape)
+                    test_pt = self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,3], pt, 14, input_img.shape, upscale=True)
+                    cv2.circle(input_img, test_pt, 3, (0,0,255), 1)
+                # Rest
+                for i, pt in enumerate(kps[3:]):
+                    pt = self.inferencer.downscale_pt(pt, input_img.shape)
+                    test_pt = self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,4+i], pt, 14, input_img.shape, upscale=True)
+                    cv2.circle(input_img, test_pt, 3, (0,0,255), 1)
                 #cv2.imshow('Result image', self.rst_img)
             cv2.imshow('Drone cam', self.img)
+            cv2.imshow('Pose cam', input_img)
             cv2.waitKey(3)
 
     def _pose_cb(self, pose_msg):
