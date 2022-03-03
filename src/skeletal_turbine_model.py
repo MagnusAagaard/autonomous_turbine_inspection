@@ -126,7 +126,7 @@ class SkeletalTurbineModel:
         # Show results
         for u, v in img_pts:
             cv2.circle(img, (int(u), int(v)), 5, (0,255,0), -1)
-        for i in range(3):
+        for i in range(2):
             cv2.line(img, (int(img_pts[i,0]), int(img_pts[i,1])), (int(img_pts[i+1,0]), int(img_pts[i+1,1])), (255,0,0), 1)
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[3,0]), int(img_pts[3,1])), (255,0,0), 1)
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[4,0]), int(img_pts[4,1])), (255,0,0), 1)
@@ -134,7 +134,10 @@ class SkeletalTurbineModel:
         if show_img:
             cv2.imshow('Projected point model', img)
             cv2.waitKey(0)
-        return img_pts
+        rst_pts = []
+        for _pt in img_pts:
+            rst_pts.append([int(_pt[0]), int(_pt[1])])
+        return rst_pts[::-1]
         
 
 def set_axes_equal(ax):
