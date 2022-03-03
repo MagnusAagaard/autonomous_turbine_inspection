@@ -77,6 +77,29 @@ class SkeletalTurbineModel:
             ax.plot(line[:,0], line[:,1], line[:,2])
         set_axes_equal(ax)
         plt.show()
+        
+    def subdivide_lines(self):
+        '''
+        Subdivides the line models into points along those lines. These points
+        can be searched in a perpendicular direction to find correspondence
+        with the output from the neural network.
+        '''
+        # Step sizes in [m] - tower-->top-->wing_center-->wings
+        step_sizes = [2, 0.5, 1, 1, 1]
+        lines_divided = []
+        for i, line in enumerate(self.line_model):
+            mag = np.linalg.norm(line[1]-line[0])
+            steps = int(mag / step_sizes[i])
+            dxyz = mag/steps
+            unit_vector = (line[1]-line[0])/mag
+            line_divided = []
+            for j in range(1,steps+1):
+                sub_pt = line[0] + unit_vector*dxyz*j
+                line_divided.append(sub_pt)
+            lines_divided.append(line_divided)
+            
+        return lines_divided
+            
 
     def project_model_to_image(self, img=None, K=None, cam_pose=None, show_img=False):
         # Project the model into image coordinate system (2D)
@@ -124,20 +147,37 @@ class SkeletalTurbineModel:
                 point /= point[2]
             img_pts[i,:] = point[:2]
         # Show results
-        for u, v in img_pts:
-            cv2.circle(img, (int(u), int(v)), 5, (0,255,0), -1)
-        for i in range(2):
-            cv2.line(img, (int(img_pts[i,0]), int(img_pts[i,1])), (int(img_pts[i+1,0]), int(img_pts[i+1,1])), (255,0,0), 1)
-        cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[3,0]), int(img_pts[3,1])), (255,0,0), 1)
-        cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[4,0]), int(img_pts[4,1])), (255,0,0), 1)
-        cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[5,0]), int(img_pts[5,1])), (255,0,0), 1)
+        #for u, v in img_pts:
+        #    cv2.circle(img, (int(u), int(v)), 5, (0,255,0), -1)
+        #for i in range(2):
+        #    cv2.line(img, (int(img_pts[i,0]), int(img_pts[i,1])), (int(img_pts[i+1,0]), int(img_pts[i+1,1])), (255,0,0), 1)
+        #cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[3,0]), int(img_pts[3,1])), (255,0,0), 1)
+        #cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[4,0]), int(img_pts[4,1])), (255,0,0), 1)
+        #cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[5,0]), int(img_pts[5,1])), (255,0,0), 1)
         if show_img:
             cv2.imshow('Projected point model', img)
             cv2.waitKey(0)
         rst_pts = []
         for _pt in img_pts:
             rst_pts.append([int(_pt[0]), int(_pt[1])])
-        return rst_pts[::-1]
+        lines_divided_3d = self.subdivide_lines()
+        lines_divided_2d = []
+        for line in lines_divided_3d:
+            line_divided_2d = []
+            for pt in line:
+                point = np.copy(pt)
+                point = np.append(point,1)
+                # Perspective transform
+                point = P @ point
+                # Re-scale homogenous point
+                if point[2] > 0:
+                    point /= point[2]
+                line_divided_2d.append(point[:2])
+            lines_divided_2d.append(line_divided_2d)
+        #for line in lines_divided_2d:
+        #    for pt in line:
+        #        cv2.circle(img, (int(pt[0]), int(pt[1])), 1, (255,0,0), -1)
+        return rst_pts[::-1], lines_divided_2d
         
 
 def set_axes_equal(ax):
@@ -173,7 +213,8 @@ def main():
     # Main
     stm = SkeletalTurbineModel()
     #stm.project_model_to_image(show_img=True)
-    stm.plot_model()
+    #stm.plot_model()
+    stm.subdivide_lines()
     #utils.dist_between_points(stm.point_model[2],stm.point_model[3])
 
 if __name__ == "__main__":
