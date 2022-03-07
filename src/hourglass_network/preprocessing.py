@@ -21,6 +21,16 @@ index_dict = {'wing_tip': 0,
               'tower_top': 2,
               'tower_bottom': 3}
 
+def get_translation_transform(trans_x, trans_y):
+    '''
+    Similarity transform (rotation, translation and scale in one).
+    '''
+    return np.array([
+        [1, 0, trans_x],
+        [0, 1, trans_y],
+        [0, 0, 1]
+    ])
+
 def get_similarity_transform_with_offset(scale, angle, trans_x, trans_y, im_w, im_h):
     '''
     Similarity transform (rotation, translation and scale in one).
@@ -98,29 +108,23 @@ def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_
     Last three channels are line data in order: tower_bottom --> tower_top, tower_top --> wing_center, wing_center --> wing_tips
     '''
     img_path = './src/hourglass_network/data/all_data/' if not test else './src/hourglass_network/data/test_data/'
+    kps.sort(key=lambda x: x[2])
     # Apply data augmentation if true
     if apply_augmentation:
         tmp_img = cv2.imread(img_path + img_name).astype(np.float32)/255.0
-        s_range = 0.7
-        a_range = np.deg2rad(20)
-        # Translation max to edge of image using a crop of 256x256
-        #trans_range_x = tmp_img.shape[1] - 256
-        #trans_range_y = tmp_img.shape[0] - 256
-        #if trans_range_x < 0:
-        #    trans_range_x = 0
-        #if trans_range_y < 0:
-        #    trans_range_y = 0
+        s_range = 0.2
+        #a_range = np.deg2rad(20)
+        a_range = 0
+        # Random vals to determine values within range
         random_vals = np.random.rand(4)
         #s = 1 + (random_vals[0] * s_range) - s_range/2
         s = 1 - random_vals[0] * s_range
         a = random_vals[1] * a_range - a_range/2
-        #trans_x = random_vals[2] * trans_range_x - trans_range_x/2
-        #trans_y = random_vals[3] * trans_range_y - trans_range_y/2
         trans_x = 0
         trans_y = 0
         similarity_transform = get_similarity_transform_with_offset(scale=s, angle=a, trans_x=trans_x, trans_y=trans_y, im_w=tmp_img.shape[1], im_h=tmp_img.shape[0])
         #img = tf.warp(tmp_img, similarity_transform)
-        img = cv2.warpAffine(tmp_img, similarity_transform[:2,:], (tmp_img.shape[1], tmp_img.shape[0]))
+        img = cv2.warpAffine(tmp_img, similarity_transform[:2,:], (int(tmp_img.shape[1]*s), int(tmp_img.shape[0]*s)))
         # Also transform keypoints..
         xs = [kp[0] for kp in kps]
         ys = [kp[1] for kp in kps]
@@ -130,12 +134,47 @@ def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_
         for i, kp in enumerate(kps):
             kp[0] = round(pts[0,i])
             kp[1] = round(pts[1,i])
+        # Now translate to center around kps.. + some deviation
+        trans_range_x = int(img.shape[1]*0.1)
+        trans_range_y = int(img.shape[0]*0.1)
+        #xc = int(sum([kp[0] for kp in kps[3:]])/3) #+ (random_vals[2] * trans_range_x - trans_range_x/2))
+        #yc = int(sum([kp[1] for kp in kps[3:]])/3) #+ (random_vals[3] * trans_range_y - trans_range_y/2))
+        xc = int(kps[1][0] + (random_vals[2] * trans_range_x - trans_range_x/2))
+        yc = int(kps[1][1] + (random_vals[3] * trans_range_y - trans_range_y/2))
+        if xc-256/2 < 0:
+            xc += 256/2 - xc
+        elif xc+256/2 > img.shape[1]:
+            xc -= xc+256/2 - img.shape[1]
+        if yc-256/2 < 0:
+            yc += 256/2 - yc
+        elif yc+256/2 > img.shape[0]:
+            yc -= yc+256/2 - img.shape[0]
+        trans_x = xc - img.shape[1]/2
+        trans_y = yc - img.shape[0]/2
+        # Redo transform
+        translation = get_translation_transform(-trans_x, -trans_y)
+        #cv2.imshow('Imgbf', img)
+        img = cv2.warpAffine(img, translation[:2,:], (img.shape[1], img.shape[0]))
+        #cv2.imshow('imgaf', img)
+        # Also transform keypoints..
+        xs = [kp[0] for kp in kps]
+        ys = [kp[1] for kp in kps]
+        pts = np.array((xs, ys))
+        pts = np.vstack((pts, np.ones(shape=(1,pts.shape[1]))))
+        pts = translation @ pts
+        for i, kp in enumerate(kps):
+            kp[0] = round(pts[0,i])
+            kp[1] = round(pts[1,i])
+        #show_keypoints_on_img(kps, img, show=True)
     else:
         img = cv2.imread(img_path + img_name).astype(np.float32)/255.0
     #show_keypoints_on_img(kps, img, show=True)
     kernel_size = 0    # From OpenCV formula. If set at 0, the kernel size is automatically calculated as 31 with sigma=5 based on sigma and vice versa if sigma = 0
-    # Random affine transform applied to input_img/prior
-    transform = transforms.RandomAffine(degrees=2, translate=(0.05, 0.05), shear=2)
+    # Random affine transform applied to input_img/prior (10 pixels max)
+    sx = 15./img.shape[1]
+    sy = 15./img.shape[0]
+    transform = transforms.RandomAffine(degrees=2, translate=(sx, sy), shear=2)
+    
     # Data variables
     pt_data = [np.zeros((img.shape[0], img.shape[1]), dtype=np.float32) for i in range(4)]
     line_data = [np.zeros((img.shape[0], img.shape[1]), dtype=np.float32) for i in range(3)]
@@ -146,7 +185,6 @@ def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_
     # Housekeeper variable for tmp keypoints
     out_of_bound_kps = []
     
-    kps.sort(key=lambda x: x[2])
     for kp in kps:
         if kp[2].find('tmp') == -1 and kp[0] > 0 and kp[0] < img.shape[1] and kp[1] > 0 and kp[1] < img.shape[0]:
             #print(kp)
