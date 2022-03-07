@@ -1,9 +1,11 @@
 import os
+import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import Compose, ToTensor, CenterCrop, Resize
 import json
 import numpy as np
 import preprocessing
+import random
 
 class WindturbineDataset(Dataset):
     def __init__(self, annotations_file, img_dir, train_transform=None, test_transform=None, train=True):
@@ -20,10 +22,20 @@ class WindturbineDataset(Dataset):
         img = self.annotations[idx]
         input_img, label_img = preprocessing.process_annotations(img, apply_augmentation=self.train)
         if self.train and self.train_transform:
+            seed = np.random.randint(2147483647)
+            random.seed(seed)
+            torch.manual_seed(seed)
             input_img = self.train_transform(input_img)
+            random.seed(seed)
+            torch.manual_seed(seed)
             label_img = self.train_transform(label_img)
         elif not self.train and self.test_transform:
+            seed = np.random.randint(2147483647)
+            random.seed(seed)
+            torch.manual_seed(seed)
             input_img = self.test_transform(input_img)
+            random.seed(seed)
+            torch.manual_seed(seed)
             label_img = self.test_transform(label_img)
             
         return input_img, label_img
