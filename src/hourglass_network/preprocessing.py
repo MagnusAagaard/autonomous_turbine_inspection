@@ -104,18 +104,20 @@ def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_
         s_range = 0.7
         a_range = np.deg2rad(20)
         # Translation max to edge of image using a crop of 256x256
-        trans_range_x = tmp_img.shape[1] - 256
-        trans_range_y = tmp_img.shape[0] - 256
-        if trans_range_x < 0:
-            trans_range_x = 0
-        if trans_range_y < 0:
-            trans_range_y = 0
+        #trans_range_x = tmp_img.shape[1] - 256
+        #trans_range_y = tmp_img.shape[0] - 256
+        #if trans_range_x < 0:
+        #    trans_range_x = 0
+        #if trans_range_y < 0:
+        #    trans_range_y = 0
         random_vals = np.random.rand(4)
         #s = 1 + (random_vals[0] * s_range) - s_range/2
         s = 1 - random_vals[0] * s_range
         a = random_vals[1] * a_range - a_range/2
-        trans_x = random_vals[2] * trans_range_x - trans_range_x/2
-        trans_y = random_vals[3] * trans_range_y - trans_range_y/2
+        #trans_x = random_vals[2] * trans_range_x - trans_range_x/2
+        #trans_y = random_vals[3] * trans_range_y - trans_range_y/2
+        trans_x = 0
+        trans_y = 0
         similarity_transform = get_similarity_transform_with_offset(scale=s, angle=a, trans_x=trans_x, trans_y=trans_y, im_w=tmp_img.shape[1], im_h=tmp_img.shape[0])
         #img = tf.warp(tmp_img, similarity_transform)
         img = cv2.warpAffine(tmp_img, similarity_transform[:2,:], (tmp_img.shape[1], tmp_img.shape[0]))

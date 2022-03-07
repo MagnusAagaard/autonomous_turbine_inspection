@@ -91,25 +91,40 @@ class Trainer:
     # helper function to plot images to TensorBoard
     def plot_preds(self, images):
         outputs = self.model(images)
-        fig = plt.figure(figsize=(15, 15))
+        fig = plt.figure(figsize=(2.56, 2.56))
         for idx in np.arange(images.shape[0]):
             # Remove expanded dim, move to cpu and numpyfi
             output = torch.squeeze(outputs[idx]).cpu().numpy().transpose(1,2,0)
             input_img_data = torch.squeeze(images[idx]).cpu().numpy().transpose(1,2,0)
-            ax = fig.add_subplot(images.shape[0],4,4*idx+1,xticks=[],yticks=[])
+            ax = fig.add_subplot(8,images.shape[0],idx+1,xticks=[],yticks=[])
             input_img = input_img_data[:,:,:3]
             plt.imshow(input_img[...,::-1])
             ax.set_title("Input")
-            ax = fig.add_subplot(images.shape[0],4,4*idx+2,xticks=[],yticks=[])
+            ax = fig.add_subplot(8,images.shape[0],images.shape[0]+idx+1,xticks=[],yticks=[])
             output_img = output[:,:,:3]
             plt.imshow(output_img[...,::-1])
             ax.set_title("Output")
-            ax = fig.add_subplot(images.shape[0],4,4*idx+3,xticks=[],yticks=[])
-            plt.imshow(np.sum(output[:,:,3:7], axis=2), cmap='gray', vmin=0, vmax=1.0)
-            ax.set_title("Points")
-            ax = fig.add_subplot(images.shape[0],4,4*idx+4,xticks=[],yticks=[])
-            plt.imshow(np.sum(output[:,:,7:], axis=2), cmap='gray', vmin=0, vmax=1.0)
-            ax.set_title("Lines")
+            ax = fig.add_subplot(8,images.shape[0],2*images.shape[0]+idx+1,xticks=[],yticks=[])
+            plt.imshow(np.sum(output[:,:,3], axis=2), cmap='gray', vmin=0, vmax=np.max(output[:,:,3]))
+            ax.set_title(f"Tips {np.max(output[:,:,3])}")
+            ax = fig.add_subplot(8,images.shape[0],3*images.shape[0]+idx+1,xticks=[],yticks=[])
+            plt.imshow(np.sum(output[:,:,4], axis=2), cmap='gray', vmin=0, vmax=np.max(output[:,:,4]))
+            ax.set_title(f"Center {np.max(output[:,:,4])}")
+            ax = fig.add_subplot(8,images.shape[0],4*images.shape[0]+idx+1,xticks=[],yticks=[])
+            plt.imshow(np.sum(output[:,:,5], axis=2), cmap='gray', vmin=0, vmax=np.max(output[:,:,5]))
+            ax.set_title(f"Top {np.max(output[:,:,3])}")
+            ax = fig.add_subplot(8,images.shape[0],5*images.shape[0]+idx+1,xticks=[],yticks=[])
+            plt.imshow(np.sum(output[:,:,6], axis=2), cmap='gray', vmin=0, vmax=np.max(output[:,:,6]))
+            ax.set_title(f"Bottom {np.max(output[:,:,6])}")
+            ax = fig.add_subplot(8,images.shape[0],6*images.shape[0]+idx+1,xticks=[],yticks=[])
+            plt.imshow(np.sum(output[:,:,7], axis=2), cmap='gray', vmin=0, vmax=np.max(output[:,:,7]))
+            ax.set_title(f"Bot-->Top {np.max(output[:,:,7])}")
+            ax = fig.add_subplot(8,images.shape[0],7*images.shape[0]+idx+1,xticks=[],yticks=[])
+            plt.imshow(np.sum(output[:,:,8], axis=2), cmap='gray', vmin=0, vmax=np.max(output[:,:,8]))
+            ax.set_title(f"Top-->WC {np.max(output[:,:,8])}")
+            ax = fig.add_subplot(8,images.shape[0],8*images.shape[0]+idx+1,xticks=[],yticks=[])
+            plt.imshow(np.sum(output[:,:,9], axis=2), cmap='gray', vmin=0, vmax=np.max(output[:,:,9]))
+            ax.set_title(f"WC-->Tips {np.max(output[:,:,9])}")
         return fig
     
     def evaluate(self):
@@ -138,7 +153,7 @@ class Trainer:
         
     def train(self):
         # Run trainer
-        dataset = WindturbineDataset(f'{self.base_dir}/data/annotations_125.json', f'{self.base_dir}/data/all_data', train_transform=Compose([ToTensor(), RandomHorizontalFlip(0.5), CenterCrop(256)]), test_transform=Compose([ToTensor(), Resize(256), CenterCrop(256)]))
+        dataset = WindturbineDataset(f'{self.base_dir}/data/annotations_125.json', f'{self.base_dir}/data/all_data', train_transform=Compose([ToTensor(), RandomCrop(size=(480,640), pad_if_needed=True, fill=0), RandomHorizontalFlip(0.5), CenterCrop(256)]), test_transform=Compose([ToTensor(), Resize(256), CenterCrop(256)]))
         train_val_split = int(len(dataset)*0.8)
         self.train_set, self.val_set = random_split(dataset, [train_val_split, len(dataset)-train_val_split], generator=torch.Generator().manual_seed(42))
         print(f'Length of train dataset: {len(self.train_set)} \t Length of val dataset: {len(self.val_set)}')
