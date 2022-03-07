@@ -104,8 +104,8 @@ def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_
         s_range = 0.7
         a_range = np.deg2rad(20)
         # Translation max to edge of image using a crop of 256x256
-        trans_range_x = (tmp_img.shape[1] - 256)/2
-        trans_range_y = (tmp_img.shape[0] - 256)/2
+        trans_range_x = tmp_img.shape[1] - 256
+        trans_range_y = tmp_img.shape[0] - 256
         if trans_range_x < 0:
             trans_range_x = 0
         if trans_range_y < 0:
