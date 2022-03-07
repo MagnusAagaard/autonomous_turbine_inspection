@@ -91,7 +91,7 @@ class Trainer:
     # helper function to plot images to TensorBoard
     def plot_preds(self, images):
         outputs = self.model(images)
-        fig = plt.figure(figsize=(16, 16))
+        fig = plt.figure(figsize=(15, 15))
         for idx in np.arange(images.shape[0]):
             # Remove expanded dim, move to cpu and numpyfi
             output = torch.squeeze(outputs[idx]).cpu().numpy().transpose(1,2,0)
