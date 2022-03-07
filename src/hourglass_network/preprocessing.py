@@ -101,11 +101,15 @@ def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_
     # Apply data augmentation if true
     if apply_augmentation:
         tmp_img = cv2.imread(img_path + img_name).astype(np.float32)/255.0
-        s_range = 0.5
+        s_range = 0.7
         a_range = np.deg2rad(20)
         # Translation max to edge of image using a crop of 256x256
-        trans_range_x = tmp_img.shape[1] - 256/2
-        trans_range_y = tmp_img.shape[0] - 256/2
+        trans_range_x = (tmp_img.shape[1] - 256)/2
+        trans_range_y = (tmp_img.shape[0] - 256)/2
+        if trans_range_x < 0:
+            trans_range_x = 0
+        if trans_range_y < 0:
+            trans_range_y = 0
         random_vals = np.random.rand(4)
         #s = 1 + (random_vals[0] * s_range) - s_range/2
         s = 1 - random_vals[0] * s_range
