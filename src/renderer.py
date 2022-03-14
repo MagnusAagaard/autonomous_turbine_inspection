@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 import utils
 import timeit
+from PIL import Image
 
 class Renderer:
     def __init__(self, tower, wings):
@@ -71,9 +72,13 @@ class Renderer:
         return color
 
 def main():
-    renderer = Renderer(tower='./models/Vestas_V52/meshes/vestas_v52_tower.stl', wings='./models/Vestas_V52/meshes/vestas_v52_wings.stl')
+    renderer = Renderer(tower='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_tower.stl', 
+                        wings='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
     #renderer.render_and_show()
-    template = renderer.offscreen_render([-200, 0, 65 + 8])
+    #template = Image.fromarray(renderer.offscreen_render([-100, 0, 65, 30, 45]))
+    template = renderer.offscreen_render([-100, 0, 75, -29+180, -39+180])
+    #template.save('/home/magnus/template.pdf')
+    #cv2.imwrite('/home/magnus/template.pdf', template)
     cv2.imshow('Template', template)
     cv2.waitKey(0)
 
