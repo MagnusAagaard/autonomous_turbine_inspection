@@ -7,6 +7,7 @@ from torch.autograd import Variable
 
 from hourglass_network.model import ConvEncoderDecoder
 from hourglass_network import preprocessing
+from skeletal_turbine_model import SkeletalTurbineModel
 import timeit
 
 class Inference:
@@ -37,6 +38,7 @@ class Inference:
         annotations = preprocessing.get_annotations('./src/hourglass_network/data/annotations_test.json')
         img_name = preprocessing.get_img_name(annotations[annotation_idx])
         kps = preprocessing.get_kps(annotations[annotation_idx])
+        kps.sort(key=lambda x: x[2])
         test_img = cv2.imread(f'./src/hourglass_network/data/test_data/{img_name}')
         # Show keypoints on image
         preprocessing.show_keypoints_on_img(kps, test_img, show=True)
@@ -70,12 +72,19 @@ class Inference:
         upscale = True
         vis_img = img
         # Project points to image
-        wing_tip_pts = self.get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=upscale)
-        wing_center_pt = self.get_pt_from_heatmap(wing_center, original_image_dims=test_img.shape, upscale=upscale)
-        tower_top_pt = self.get_pt_from_heatmap(tower_top, original_image_dims=test_img.shape, upscale=upscale)
-        tower_bottom_pt = self.get_pt_from_heatmap(tower_bottom, original_image_dims=test_img.shape, upscale=upscale)
-        #for pt in wing_tip_pts:
-        #    cv2.circle(vis_img, pt, 5, (0,1,0), -1)
+        #wing_tip_pts = self.get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=upscale)
+        #wing_center_pt = self.get_pt_from_heatmap(wing_center, original_image_dims=test_img.shape, upscale=upscale)
+        #tower_top_pt = self.get_pt_from_heatmap(tower_top, original_image_dims=test_img.shape, upscale=upscale)
+        #tower_bottom_pt = self.get_pt_from_heatmap(tower_bottom, original_image_dims=test_img.shape, upscale=upscale)
+        wing_tip_pts = []
+        wing_tip_pts.append(self.get_pt_from_heatmap_within_radius(wing_tips, self.downscale_pt(kps[5][:2],test_img.shape), 10, test_img.shape, upscale=upscale))
+        wing_tip_pts.append(self.get_pt_from_heatmap_within_radius(wing_tips, self.downscale_pt(kps[4][:2],test_img.shape), 10, test_img.shape, upscale=upscale))
+        wing_tip_pts.append(self.get_pt_from_heatmap_within_radius(wing_tips, self.downscale_pt(kps[3][:2],test_img.shape), 10, test_img.shape, upscale=upscale))
+        wing_center_pt = self.get_pt_from_heatmap_within_radius(wing_center, self.downscale_pt(kps[2][:2],test_img.shape), 10, test_img.shape, upscale=upscale)
+        tower_top_pt = self.get_pt_from_heatmap_within_radius(tower_top, self.downscale_pt(kps[1][:2],test_img.shape), 10, test_img.shape, upscale=upscale)
+        tower_bottom_pt = self.get_pt_from_heatmap_within_radius(tower_bottom, self.downscale_pt(kps[0][:2],test_img.shape), 10, test_img.shape, upscale=upscale)
+        for pt in wing_tip_pts:
+            cv2.circle(vis_img, pt, 5, (0,1,0), -1)
         if wing_center_pt:
             cv2.circle(vis_img, wing_center_pt, 5, (1,0,0), -1)
         if tower_top_pt:
@@ -83,14 +92,14 @@ class Inference:
         if tower_bottom_pt:
             cv2.circle(vis_img, tower_bottom_pt, 5, (1,1,0), -1)
         # Input points to find radius used to detect points..
-        max_pts = self.get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=upscale)
-        test_pts = self.get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=False)
-        print(max_pts)
+        #max_pts = self.get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=upscale)
+        #test_pts = self.get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=False)
+        #print(max_pts)
         
-        for pt in test_pts:
-            r = 10 + int((300-100)/50)
-            test_pt = self.get_pt_from_heatmap_within_radius(wing_tips, pt, r, test_img.shape, upscale=upscale)
-            cv2.circle(vis_img, test_pt, 3, (1,0,1), 1)
+        #for pt in test_pts:
+        #    r = 10 + int((300-100)/50)
+        #    test_pt = self.get_pt_from_heatmap_within_radius(wing_tips, pt, r, test_img.shape, upscale=upscale)
+        #    cv2.circle(vis_img, test_pt, 3, (1,0,1), 1)
         # Output wing tips and wing center 
         plt.figure(4)
         plt.imshow(wing_tips, cmap='gray')
@@ -209,10 +218,11 @@ class Inference:
 
 def main():
     # Get input image
-    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run2/model_best.pt')
-    annotation_idx = 2
-    inferencer.test_timing(annotation_idx)
-    #inferencer.run_test(annotation_idx)
+    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run3/checkpoint_3000.pt')
+    #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run3/model_best_epoch704.pt')
+    annotation_idx = 0
+    #inferencer.test_timing(annotation_idx)
+    inferencer.run_test(annotation_idx)
 
 if __name__ == "__main__":
     main()
