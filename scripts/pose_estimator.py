@@ -26,11 +26,11 @@ class PoseEstimator:
                      [0.000000, 0.000000, 1.000000]])
         self.stm = None
         self.trigger_save = False
-        self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run2/model_best.pt')
+        self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run3/model_best_epoch704.pt')
         self.render = Renderer(tower='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_tower.stl', 
                                wings='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
-        self.stm = SkeletalTurbineModel(c=(360, 0), h=71.74-8, omega=np.pi+np.deg2rad(45), phi=np.pi/2)
-        #self._init_skeletal_model()
+        #self.stm = SkeletalTurbineModel(c=(360, 0), h=71.74-8, omega=np.pi+np.deg2rad(45), phi=np.pi/2)
+        self._init_skeletal_model()
 
     def _init_subscribers(self):
         # Setup subscribers
@@ -74,22 +74,22 @@ class PoseEstimator:
         # Image callback
             self.img = cv2.cvtColor(numpify(img_msg), cv2.COLOR_RGB2BGR)
             input_img = self.img.copy()
+            drone_img = self.img.copy()
             if self.trigger_save:
                 rospy.loginfo('Saving image..')
                 cv2.imwrite('tmp_img.png', self.img)
                 self.trigger_save = False
             if self.stm:
                 cam_pose = self.get_extrensic_parameters()
-                kps, lines_divided_2d = self.stm.project_model_to_image(img=input_img, K=self.K, cam_pose=cam_pose)
-                #TODO: Use inference class to run model to project points to image
+                kps, lines_divided_2d = self.stm.project_model_to_image(img=drone_img, K=self.K, cam_pose=cam_pose)
                 output = self.inferencer.forward(input_img, kps)
-                cv2.imshow('Outputpt1', output[:,:,3])
-                cv2.imshow('Outputpt2', output[:,:,4])
-                cv2.imshow('Outputpt3', output[:,:,5])
-                cv2.imshow('Outputpt4', output[:,:,6])
-                cv2.imshow('Outputl1', output[:,:,7])
-                cv2.imshow('Outputl2', output[:,:,8])
-                cv2.imshow('Outputl3', output[:,:,9])
+                #cv2.imshow('Outputpt1', output[:,:,3])
+                #cv2.imshow('Outputpt2', output[:,:,4])
+                #cv2.imshow('Outputpt3', output[:,:,5])
+                #cv2.imshow('Outputpt4', output[:,:,6])
+                #cv2.imshow('Outputl1', output[:,:,7])
+                #cv2.imshow('Outputl2', output[:,:,8])
+                #cv2.imshow('Outputl3', output[:,:,9])
                 # Wing tips
                 for pt in kps[:3]:
                     pt = self.inferencer.downscale_pt(pt, input_img.shape)
@@ -131,7 +131,7 @@ class PoseEstimator:
                         cv2.circle(input_img, test_pt, 3, (0,255,0), 1)
                     
                 #cv2.imshow('Result image', self.rst_img)
-            cv2.imshow('Drone cam', self.img)
+            cv2.imshow('Drone cam', drone_img)
             cv2.imshow('Pose cam', input_img)
             cv2.waitKey(3)
 
