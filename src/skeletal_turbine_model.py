@@ -7,7 +7,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from utils import get_rotation_matrix, get_rotation_matrix_from_world_to_camera_frame
 
 class SkeletalTurbineModel:
-    def __init__(self, c=(0,0), h=71.74-8, omega=np.pi, r=5.16, phi=0, b=35.1):
+    def __init__(self, c=(0,0), h=71.74-8, omega=np.pi-np.pi/4, r=5.16, phi=0, b=35.1):
         # Init
         self.c = c          # (x,y) location of turbine tower base
         self.h = h          # Height of turbine tower (71.74m)
@@ -61,8 +61,9 @@ class SkeletalTurbineModel:
     def plot_model(self):
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        ax.set_xlabel("x"); ax.set_ylabel("y"); ax.set_zlabel("z")
-        ax.view_init(elev=0, azim=0)
+        #ax.set_xlabel("x"); ax.set_ylabel("y"); ax.set_zlabel("z")
+        ax.view_init(elev=0, azim=180)
+        ax.set_axis_off()
         #ax.grid(False)
         # Hide axes ticks
         ax.set_xticks([])
@@ -72,10 +73,25 @@ class SkeletalTurbineModel:
         ax.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
         ax.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
         ax.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-        ax.scatter(self.point_model[:,0], self.point_model[:,1], self.point_model[:,2])
-        for line in self.line_model:
-            ax.plot(line[:,0], line[:,1], line[:,2])
+        # Points
+        #ax.scatter(self.point_model[:,0], self.point_model[:,1], self.point_model[:,2])
+        ax.scatter(self.point_model[0,0], self.point_model[0,1], self.point_model[0,2], c='m')
+        #ax.text(self.point_model[0,0], self.point_model[0,1], self.point_model[0,2], 'pb')
+        ax.scatter(self.point_model[1,0], self.point_model[1,1], self.point_model[1,2], c='b')
+        ax.scatter(self.point_model[2,0], self.point_model[2,1], self.point_model[2,2], c='g')
+        ax.scatter(self.point_model[3,0], self.point_model[3,1], self.point_model[3,2], c='r')
+        ax.scatter(self.point_model[4,0], self.point_model[4,1], self.point_model[4,2], c='r')
+        ax.scatter(self.point_model[5,0], self.point_model[5,1], self.point_model[5,2], c='r')
+        # Lines
+        ax.plot(self.line_model[0,:,0], self.line_model[0,:,1], self.line_model[0,:,2], c='b')
+        ax.plot(self.line_model[1,:,0], self.line_model[1,:,1], self.line_model[1,:,2], c='g')
+        ax.plot(self.line_model[2,:,0], self.line_model[2,:,1], self.line_model[2,:,2], c='r')
+        ax.plot(self.line_model[3,:,0], self.line_model[3,:,1], self.line_model[3,:,2], c='r')
+        ax.plot(self.line_model[4,:,0], self.line_model[4,:,1], self.line_model[4,:,2], c='r')
+        #for line in self.line_model:
+        #    ax.plot(line[:,0], line[:,1], line[:,2])
         set_axes_equal(ax)
+        #fig.savefig('/home/magnus/instantiated_model.pdf', bbox_inches='tight')
         plt.show()
         
     def subdivide_lines(self):
@@ -147,13 +163,14 @@ class SkeletalTurbineModel:
                 point /= point[2]
             img_pts[i,:] = point[:2]
         # Show results
-        #for u, v in img_pts:
-        #    cv2.circle(img, (int(u), int(v)), 5, (0,255,0), -1)
-        #for i in range(2):
-        #    cv2.line(img, (int(img_pts[i,0]), int(img_pts[i,1])), (int(img_pts[i+1,0]), int(img_pts[i+1,1])), (255,0,0), 1)
-        #cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[3,0]), int(img_pts[3,1])), (255,0,0), 1)
-        #cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[4,0]), int(img_pts[4,1])), (255,0,0), 1)
-        #cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[5,0]), int(img_pts[5,1])), (255,0,0), 1)
+        for u, v in img_pts:
+            cv2.circle(img, (int(u), int(v)), 5, (0,255,0), -1)
+            cv2.circle(img, (int(u), int(v)), 35, (0,0,255), 1)
+        for i in range(2):
+            cv2.line(img, (int(img_pts[i,0]), int(img_pts[i,1])), (int(img_pts[i+1,0]), int(img_pts[i+1,1])), (255,0,0), 1)
+        cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[3,0]), int(img_pts[3,1])), (255,0,0), 1)
+        cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[4,0]), int(img_pts[4,1])), (255,0,0), 1)
+        cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[5,0]), int(img_pts[5,1])), (255,0,0), 1)
         if show_img:
             cv2.imshow('Projected point model', img)
             cv2.waitKey(0)
@@ -211,10 +228,12 @@ def set_axes_equal(ax):
 
 def main():
     # Main
-    stm = SkeletalTurbineModel()
+    #stm = SkeletalTurbineModel()
+    stm = SkeletalTurbineModel(c=(0,0), h=71.74-8, omega=5.3/4*np.pi, r=5.16, phi=0, b=35.1)
+    #stm = SkeletalTurbineModel(c=(0,0), h=1, omega=0, r=1, phi=0, b=1)
     #stm.project_model_to_image(show_img=True)
-    #stm.plot_model()
-    stm.subdivide_lines()
+    stm.plot_model()
+    #stm.subdivide_lines()
     #utils.dist_between_points(stm.point_model[2],stm.point_model[3])
 
 if __name__ == "__main__":
