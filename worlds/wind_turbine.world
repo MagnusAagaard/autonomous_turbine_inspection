@@ -122,7 +122,7 @@
 
     <!-- Rotation of wing is specified in vestas_v52_rotation model.sdf -->
     <model name="vestas1">
-      <pose>360 0 -8.043 0 0 0.785</pose>
+      <pose>110 0 -8.043 0 0 0.785</pose>
       <include>
         <uri>model://vestas_v52_rotation</uri>
       </include>
