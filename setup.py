@@ -3,7 +3,7 @@ from catkin_pkg.python_setup import generate_distutils_setup
 
 # fetch values from package.xml
 setup_args = generate_distutils_setup(
-    packages=['blade_detector', 'renderer', 'chamfer_matcher', 'skeletal_turbine_model','hourglass_network'],
+    packages=['blade_detector', 'renderer', 'chamfer_matcher', 'skeletal_turbine_model','hourglass_network', 'optimizer'],
     package_dir={'': 'src'}
 )
 
