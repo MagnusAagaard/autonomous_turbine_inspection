@@ -6,7 +6,8 @@ from std_msgs.msg import Header, Bool
 from geometry_msgs.msg import PoseStamped
 from mavros_msgs.msg import State
 from mavros_msgs.srv import CommandBool, SetMode, CommandTOL
-from math import sqrt, pi
+from math import sqrt, pi, atan2
+import numpy as np
 
 from tf.transformations import quaternion_from_euler
 
@@ -116,7 +117,7 @@ class DroneControl:
         pose.pose.orientation.w = wp[6]
         return pose
 
-    def fly_route(self, waypoints=[], hold_last_position=False):
+    def fly_route(self, waypoints=[], hold_last_position=True, hold_first_position=False):
         if not len(waypoints) >= 1:
             rospy.loginfo('Tried to fly route, but no waypoints specified.')
             return -1
@@ -128,7 +129,14 @@ class DroneControl:
             self.target_pos_pub.publish(target_position)
             self.rate.sleep()
             if(self.distance_to_target(target_position) < 0.50):
+                if wp_it == 0 and hold_first_position:
+                    rospy.loginfo('Holding first position for 10 sec..')
+                    now = rospy.Time.now()
+                    while (rospy.Time.now() - now) < rospy.Duration(secs=30):
+                        self.target_pos_pub.publish(target_position)
+                        self.rate.sleep()
                 rospy.loginfo('Next waypoint')
+                print(target_position)
                 wp_it += 1
         # Hold last position
         if hold_last_position:
@@ -138,6 +146,15 @@ class DroneControl:
                 target_position.header = Header(stamp=rospy.Time.now())
                 self.target_pos_pub.publish(target_position)
                 self.rate.sleep()
+    
+    def create_circular_waypoints(self, center, radius):
+        center = [110, 0]
+        xs = [center[0] + radius*np.sin(np.deg2rad(x-90)) for x in range(360)]
+        ys = [center[1] - radius*np.cos(np.deg2rad(y-90)) for y in range(360)]
+        angles = [atan2(center[1] - ys[i], center[0] - xs[i]) for i in range(360)]
+        qs = [quaternion_from_euler(0,0,angle) for angle in angles]
+        wps = [[xs[i], ys[i], self.altitude, qs[i][0], qs[i][1], qs[i][2], qs[i][3]] for i in range(360)]
+        return wps
 
 def main():
     # Main loop
@@ -147,7 +164,8 @@ def main():
     #q = quaternion_from_euler(0,0,pi/8)
     q = quaternion_from_euler(0,0,0)
     waypoints = [[10,0,drone.altitude, 0, 0, 0, 0], [10, 0, drone.altitude, q[0],q[1],q[2],q[3]]]
-    drone.fly_route(waypoints=waypoints, hold_last_position=True)
+    #waypoints = drone.create_circular_waypoints(center=[110,0], radius=100)
+    drone.fly_route(waypoints=waypoints, hold_first_position=False)
     #drone.shutdownDrone()
     rospy.spin()
 
