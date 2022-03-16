@@ -18,6 +18,8 @@ class SkeletalTurbineModel:
         self.initiate_point_model()
         self.update_point_model()
         self.update_line_model()
+        self.init_point_model = np.copy(self.point_model)
+        self.cam_pose_from_optimizer = None
 
     def initiate_point_model(self):
         # Initiate the default point model
@@ -142,6 +144,8 @@ class SkeletalTurbineModel:
             #cam_pose = np.column_stack((R, t))
         # Projection matrix P = K [R|t]
         P = K @ cam_pose
+        if self.cam_pose_from_optimizer is not None:
+            P = K @ self.cam_pose_from_optimizer
         # Project to 2D
         img_pts = np.zeros((6,2))
         for i, pt in enumerate(self.point_model):
@@ -164,13 +168,35 @@ class SkeletalTurbineModel:
             img_pts[i,:] = point[:2]
         # Show results
         for u, v in img_pts:
-            cv2.circle(img, (int(u), int(v)), 5, (0,255,0), -1)
-            cv2.circle(img, (int(u), int(v)), 35, (0,0,255), 1)
+            cv2.circle(img, (int(u), int(v)), 5, (0,255,0), 1)
+            cv2.circle(img, (int(u), int(v)), 35, (0,255,0), 1)
         for i in range(2):
-            cv2.line(img, (int(img_pts[i,0]), int(img_pts[i,1])), (int(img_pts[i+1,0]), int(img_pts[i+1,1])), (255,0,0), 1)
-        cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[3,0]), int(img_pts[3,1])), (255,0,0), 1)
-        cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[4,0]), int(img_pts[4,1])), (255,0,0), 1)
-        cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[5,0]), int(img_pts[5,1])), (255,0,0), 1)
+            cv2.line(img, (int(img_pts[i,0]), int(img_pts[i,1])), (int(img_pts[i+1,0]), int(img_pts[i+1,1])), (0,255,0), 1)
+        cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[3,0]), int(img_pts[3,1])), (0,255,0), 1)
+        cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[4,0]), int(img_pts[4,1])), (0,255,0), 1)
+        cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[5,0]), int(img_pts[5,1])), (0,255,0), 1)
+        # For init point model
+        P = K @ cam_pose
+        img_pts_init = np.zeros((6,2))
+        for i, pt in enumerate(self.init_point_model):
+            # Transform point to homogenous coords
+            point = np.copy(pt)
+            point = np.append(point,1)
+            # Perspective transform
+            point = P @ point
+            # Re-scale homogenous point
+            if point[2] > 0:
+                point /= point[2]
+            img_pts_init[i,:] = point[:2]
+        # Show results
+        for u, v in img_pts_init:
+            cv2.circle(img, (int(u), int(v)), 5, (255,0,0), 1)
+            cv2.circle(img, (int(u), int(v)), 35, (255,0,0), 1)
+        for i in range(2):
+            cv2.line(img, (int(img_pts_init[i,0]), int(img_pts_init[i,1])), (int(img_pts_init[i+1,0]), int(img_pts_init[i+1,1])), (255,0,0), 1)
+        cv2.line(img, (int(img_pts_init[2,0]), int(img_pts_init[2,1])), (int(img_pts_init[3,0]), int(img_pts_init[3,1])), (255,0,0), 1)
+        cv2.line(img, (int(img_pts_init[2,0]), int(img_pts_init[2,1])), (int(img_pts_init[4,0]), int(img_pts_init[4,1])), (255,0,0), 1)
+        cv2.line(img, (int(img_pts_init[2,0]), int(img_pts_init[2,1])), (int(img_pts_init[5,0]), int(img_pts_init[5,1])), (255,0,0), 1)
         if show_img:
             cv2.imshow('Projected point model', img)
             cv2.waitKey(0)
@@ -195,7 +221,13 @@ class SkeletalTurbineModel:
         #    for pt in line:
         #        cv2.circle(img, (int(pt[0]), int(pt[1])), 1, (255,0,0), -1)
         return rst_pts[::-1], lines_divided_2d
-        
+    
+    def update_point_model_from_optimizer(self, points):
+        '''
+        Takes list of points and updates point model based on this.
+        '''
+        for i, point in enumerate(points[::-1]):
+            self.point_model[i] = point.point
 
 def set_axes_equal(ax):
     '''Make axes of 3D plot have equal scale so that spheres appear as spheres,

@@ -32,6 +32,21 @@ def get_rotation_matrix_from_world_to_camera_frame():
     R = np.array([[0, -1, 0], [0,0,-1], [1,0,0]])
     return R
 
+def get_pose_from_pose_msg(pose_msg):
+    '''
+    Returns R, t in world frame, given a PoseStamped.pose msg in camera frame.
+    '''
+    x = pose_msg.pose.position.x
+    y = pose_msg.pose.position.y
+    z = pose_msg.pose.position.z
+    t_cam = np.array([x, y, z])
+    R_cam = quarternion_to_rotation_matrix(pose_msg.pose.orientation, inverse=True)
+    Rex = get_rotation_matrix_from_world_to_camera_frame()
+    # Transform from camera to world frame
+    R = Rex @ R_cam
+    t = -Rex @ R_cam @ t_cam
+    return R,t
+    
 def quarternion_to_rotation_matrix(q, inverse=False):
     """
     Returns rotation matrix given a quarternion as a PoseStamped.pose.orientation msg.
@@ -43,6 +58,29 @@ def quarternion_to_rotation_matrix(q, inverse=False):
     qx = q.x if not inverse else -q.x
     qy = q.y if not inverse else -q.y
     qz = q.z if not inverse else -q.z
+    R11 = 1 - 2*qy**2 - 2*qz**2	
+    R12 = 2*qx*qy - 2*qz*qw
+    R13 = 2*qx*qz + 2*qy*qw
+    R21 = 2*qx*qy + 2*qz*qw
+    R22 = 1 - 2*qx**2 - 2*qz**2
+    R23 = 2*qy*qz - 2*qx*qw
+    R31 = 2*qx*qz - 2*qy*qw
+    R32 = 2*qy*qz + 2*qx*qw 
+    R33 = 1 - 2*qx**2 - 2*qy**2
+    R = np.array([[R11, R12, R13], [R21, R22, R23], [R31, R32, R33]])
+    return R
+
+def quarternion_to_rotation_matrix_g2o(q, inverse=False):
+    """
+    Converts quaternions q from g2o library into rotation matrix.
+    The formula for converting from a quarternion to a rotation 
+    matrix is taken from here:
+    https://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/index.htm
+    """
+    qw = q.w()
+    qx = q.x() if not inverse else -q.x()
+    qy = q.y() if not inverse else -q.y()
+    qz = q.z() if not inverse else -q.z()
     R11 = 1 - 2*qy**2 - 2*qz**2	
     R12 = 2*qx*qy - 2*qz*qw
     R13 = 2*qx*qz + 2*qy*qw
