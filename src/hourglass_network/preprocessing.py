@@ -113,8 +113,8 @@ def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_
     if apply_augmentation:
         tmp_img = cv2.imread(img_path + img_name).astype(np.float32)/255.0
         s_range = 0.2
-        #a_range = np.deg2rad(20)
-        a_range = 0
+        a_range = np.deg2rad(20)
+        #a_range = 0
         # Random vals to determine values within range
         random_vals = np.random.rand(4)
         #s = 1 + (random_vals[0] * s_range) - s_range/2
@@ -171,9 +171,9 @@ def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_
     #show_keypoints_on_img(kps, img, show=True)
     kernel_size = 0    # From OpenCV formula. If set at 0, the kernel size is automatically calculated as 31 with sigma=5 based on sigma and vice versa if sigma = 0
     # Random affine transform applied to input_img/prior (10 pixels max)
-    sx = 15./img.shape[1]
-    sy = 15./img.shape[0]
-    transform = transforms.RandomAffine(degrees=2, translate=(sx, sy), shear=2)
+    sx = 10./img.shape[1]
+    sy = 10./img.shape[0]
+    transform = transforms.RandomAffine(degrees=2, translate=(sx, sy))
     
     # Data variables
     pt_data = [np.zeros((img.shape[0], img.shape[1]), dtype=np.float32) for i in range(4)]
