@@ -18,10 +18,11 @@ from dataloader import WindturbineDataset
 
 def parse_command_line():
         parser = argparse.ArgumentParser()
-        parser.add_argument('-e', '--epochs', type=int, default=1000, help='max number of epochs')
+        parser.add_argument('-e', '--epochs', type=int, default=2000, help='max number of epochs')
         parser.add_argument('-r', '--resume', type=bool, default=False, help='whether to resume training from a checkpoint (using model_best.pt)')
         parser.add_argument('-b', '--base_dir', type=str, default='./src/hourglass_network', help='base directory of model code')
         parser.add_argument('-v', '--validate', type=int, default=2, help='number of epochs between model validation. Also saves best model when validating.')
+        parser.add_argument('-i', '--interval', type=int, default=50, help='every [interval] the current model is saved')
         args = parser.parse_args()
         return args
 
@@ -31,8 +32,9 @@ class Trainer:
         self.validate_interval = args.validate
         self.resume = args.resume
         self.base_dir = args.base_dir
+        self.save_interval = args.interval
         # TensorBoard writer
-        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_3')
+        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_4')
         # Use CUDA if available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = ConvEncoderDecoder(10)
@@ -80,13 +82,13 @@ class Trainer:
         else:
             torch.save(state, filename_loc)
             
-    def save(self, is_best,):
+    def save(self, is_best, loss):
         #print(f'Saving checkpoint for epoch {self.epoch}..')
         self.save_checkpoint({
             'state_dict': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
             'epoch': self.epoch,
-            'loss': self.lowest_loss}, is_best)
+            'loss': loss}, is_best)
         
     # helper function to plot images to TensorBoard
     def plot_preds(self, images):
@@ -192,9 +194,17 @@ class Trainer:
                     tqdm.write(f'New best model with loss: {val_loss} - Saving checkpoint for epoch {self.epoch}')
                     self.lowest_loss = val_loss
                     best = True
-                    self.save(is_best=best)
+                    self.save(is_best=best, loss=self.lowest_loss)
+                elif self.epoch % self.save_interval == 0:
+                    tqdm.write(f'Saving checkpoint for epoch {self.epoch} with loss: {val_loss}')
+                    self.save(is_best=False, loss=val_loss)
+            elif self.epoch % self.save_interval == 0:
+                val_loss = self.evaluate()
+                tqdm.write(f'Saving checkpoint for epoch {self.epoch} with loss: {val_loss}')
+                self.save(is_best=False, loss=val_loss)
         # Save last epoch no matter what
-        self.save(is_best=False)
+        val_loss = self.evaluate()
+        self.save(is_best=False, loss=val_loss)
 
 def main():
     args = parse_command_line()
