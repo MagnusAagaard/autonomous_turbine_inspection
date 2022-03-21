@@ -82,13 +82,13 @@ def create_simple_input_img(kps, img, sigma):
         input_img[:,:,3+i] = np.copy(pts)
     # Draw sorted keypoints on label image
     # tower_bottom --> tower_top
-    cv2.line(line_data[0], kps[0][:2], kps[1][:2], 1.0, 1)
+    cv2.line(line_data[0], kps[5][:2], kps[4][:2], 1.0, 1)
     # tower_top --> wing_center
-    cv2.line(line_data[1], kps[1][:2], kps[2][:2], 1.0, 1)
+    cv2.line(line_data[1], kps[4][:2], kps[3][:2], 1.0, 1)
     # wing_center --> wing_tips
-    cv2.line(line_data[2], kps[2][:2], kps[3][:2], 1.0, 1)
-    cv2.line(line_data[2], kps[2][:2], kps[4][:2], 1.0, 1)
-    cv2.line(line_data[2], kps[2][:2], kps[5][:2], 1.0, 1)
+    cv2.line(line_data[2], kps[3][:2], kps[2][:2], 1.0, 1)
+    cv2.line(line_data[2], kps[3][:2], kps[1][:2], 1.0, 1)
+    cv2.line(line_data[2], kps[3][:2], kps[0][:2], 1.0, 1)
     for i, lines in enumerate(line_data):
         input_img[:,:,3+len(pt_data)+i] = np.copy(lines)
     # Apply Gaussian blur on input image and renormalize values 0-1
