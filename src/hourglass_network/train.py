@@ -13,7 +13,7 @@ from torchvision.transforms import Compose, ToTensor, RandomCrop, Resize, Center
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 
-from model import ConvEncoderDecoder
+from model import ConvEncoderDecoder, ConvEncoderDecoderV2
 from dataloader import WindturbineDataset
 
 def parse_command_line():
@@ -34,10 +34,10 @@ class Trainer:
         self.base_dir = args.base_dir
         self.save_interval = args.interval
         # TensorBoard writer
-        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_4')
+        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_5')
         # Use CUDA if available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model = ConvEncoderDecoder(10)
+        self.model = ConvEncoderDecoderV2(10)
         # Move model to GPU if available
         self.model.to(self.device)
         self.optimizer = Adam(self.model.parameters(), lr=1e-3)
@@ -161,6 +161,8 @@ class Trainer:
         print(f'Length of train dataset: {len(self.train_set)} \t Length of val dataset: {len(self.val_set)}')
         self.train_dataloader = DataLoader(self.train_set, batch_size=16, num_workers=6, shuffle=True)
         self.val_dataloader = DataLoader(self.val_set, batch_size=16, num_workers=2, shuffle=False)
+        #self.train_dataloader = DataLoader(self.train_set, batch_size=2, num_workers=6, shuffle=True)
+        #self.val_dataloader = DataLoader(self.val_set, batch_size=2, num_workers=2, shuffle=False)
         
         # Write model to TensorBoard
         input_to_model, _ = next(iter(self.train_set))
