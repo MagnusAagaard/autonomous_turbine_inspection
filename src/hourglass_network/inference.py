@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from torchvision.transforms import Compose, ToTensor, CenterCrop, Resize, RandomCrop
 from torch.autograd import Variable
 
-from hourglass_network.model import ConvEncoderDecoder
+from hourglass_network.model import ConvEncoderDecoder, ConvEncoderDecoderV2
 from hourglass_network import preprocessing
 from skeletal_turbine_model import SkeletalTurbineModel
 import timeit
@@ -128,6 +128,7 @@ class Inference:
     def forward(self, input_img, kps):
         # Transform input img with Gaussian + lines and kps
         input_img = preprocessing.create_simple_input_img(kps, input_img, sigma=20)
+        #cv2.imshow('input_img_full', np.sum(input_img[:,:,3:], axis=2))
         # Run inference
         with torch.no_grad():
             transform = Compose([ToTensor(), Resize(256), CenterCrop(256)])
@@ -192,16 +193,19 @@ class Inference:
             return [int(pt[0]), int(pt[1])]
         return None
 
-    def get_pt_from_heatmap_within_radius(self, img, pt, radius, original_image_dims, upscale=True):
+    def get_pt_from_heatmap_within_radius(self, img, pt, radius, original_image_dims, threshold = 0.6, upscale=True):
         mask = np.zeros(img.shape[:2], dtype=np.uint8)
         cv2.circle(mask, (pt[0], pt[1]), radius, 255, -1)
         masked = cv2.bitwise_and(img, img, mask=mask)
-        max_pt = np.flip(np.argwhere(masked == masked.max())[0])
+        if masked.max() >= threshold:
+            max_pt = np.flip(np.argwhere(masked == masked.max())[0])
+        else:
+            max_pt = np.array([-1,-1])
         if upscale:
             return self.upscale_pt(max_pt, original_image_dims)
         return max_pt
 
-    def get_line_from_heatmap(self, img, pt, perp_uvec, dist, original_image_dims, upscale=True):
+    def get_line_from_heatmap(self, img, pt, perp_uvec, dist, original_image_dims, threshold = 0.3, upscale=True):
         '''
         Search for highest value along perpenducilar unit vector from pt in img.
         Dist indicates the distance to search for in each direction
@@ -211,14 +215,31 @@ class Inference:
         pt2 = (int(pt[0] + dist*perp_uvec[0]), int(pt[1] + dist*perp_uvec[1]))
         cv2.line(mask, pt1, pt2, 255, 1)
         masked = cv2.bitwise_and(img, img, mask=mask)
-        max_pt = np.flip(np.argwhere(masked == masked.max())[0])
+        if masked.max() >= threshold:
+            max_pt = np.flip(np.argwhere(masked == masked.max())[0])
+        else:
+            max_pt = np.array([-1,-1])
         if upscale:
             return self.upscale_pt(max_pt, original_image_dims)
         return max_pt
+    
+    def fit_line_to_pts(self, pts):
+        A = []
+        for pt in pts:
+            if pt[0] > 0 and pt[0] < 640 and pt[1] > 0 and pt[1] < 480:
+                A.append([pt[0], pt[1], 1])
+        A = np.asarray(A)
+        # Minimum 5 pts
+        if not A.shape[0] > 4:
+            return None
+        u,s,vh = np.linalg.svd(A)
+        # Take right hand collumn of V as it corresponds to best solution (smallest singular value s)
+        # as we get V.T it is last row..
+        return vh[-1,:]
 
 def main():
     # Get input image
-    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run3/checkpoint_3000.pt')
+    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run5/model_best.pt')
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run3/model_best_epoch704.pt')
     annotation_idx = 0
     #inferencer.test_timing(annotation_idx)
