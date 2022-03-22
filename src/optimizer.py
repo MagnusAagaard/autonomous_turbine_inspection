@@ -7,13 +7,22 @@ point_colors = {1: np.array([1.0, 0.0, 0.0]),
                 3: np.array([1.0, 0.0, 0.0]),
                 4: np.array([0.0, 1.0, 0.0]),
                 5: np.array([0.0, 0.0, 1.0]),
-                6: np.array([1.0, 1.0, 0.0]),}
+                6: np.array([1.0, 1.0, 0.0])}
+
+line_colors = {1: np.array([0.0, 0.0, 1.0]),
+               2: np.array([0.0, 1.0, 0.0]),
+               3: np.array([1.0, 0.0, 0.0]),
+               4: np.array([1.0, 0.0, 1.0]),
+               5: np.array([1.0, 0.0, 1.0])}
 
 class Point:
-    def __init__(self, point, point_id = None):
+    def __init__(self, point, point_id = None, color = None):
         self.point = point
         #self.descriptor = descriptor
-        self.color = point_colors.get(point_id)
+        if color is None:
+            self.color = point_colors.get(point_id)
+        else:
+            self.color = color
         #self.feature_id = feature_id
         self.point_id = point_id
 
@@ -81,30 +90,37 @@ class PoseGraphOptimization:
         self.cameras.append(camera)
         return camera
     
-    def point_model_to_points(self, point_model):
+    def add_point_model_to_points(self, point_model):
         '''
-        Takes point_model as input and returns list of points as Point class (3D position and ID)
+        Takes point_model as input and adds to list of points as Point class (3D position and ID)
         Point_model point order: turbine_base, turbine_top, wing_center, wing_tips(1,2,3)
         '''
-        #points = []
         for i, pt in enumerate(point_model[::-1]):
             point = Point(pt, point_id=self.increment_id())
             self.points.append(point)
-        #    points.append(point)
-        print(self.points)
-        #return points
+        
+    def add_line_model_to_points(self, lines_divided_3d):
+        '''
+        Takes line model divided into 3D lines and adds each point in each line to
+        list of points as Point class (3D position and ID)
+        lines_diveded_3d line order: tower --> top --> wing_center --> wings
+        '''
+        for i, line in enumerate(lines_divided_3d):
+            for pt in line:
+                point = Point(pt, point_id=self.increment_id(), color=line_colors.get(i+1))
+                self.points.append(point)
     
-    def create_observations(self, points_3d, points_2d, cam_id):
+    def create_observations(self, points_2d, cam_id):
         '''
-        Creates observations for optimizer. Takes as input 3D points and corresponding 2D image points.
-        Point_3D[0] corresponds to point_2d[0] and so on
+        Creates observations for optimizer. Takes as input a sorted list of 2D image points.
+        Points in self.points is sorted the same way is these 2D image points.
         '''
-        for i, pt in enumerate(points_2d[:3]):
+        for i, pt in enumerate(points_2d):
             if pt[0] > 0 and pt[0] < 640 and pt[1] > 0 and pt[1] < 480:
                 obs = Observation(self.points[i].point_id, cam_id, pt)
                 self.observations.append(obs)
         print(f'Number of cams: {len(self.cameras)}')
-        print(f'Number of points: {len(self.points)}')
+        print(f'Number of points: {len(self.points)} == {len(points_2d)}')
         print(f'Number of obs: {len(self.observations)}')
         
     def freeze_nonlast_cameras(self):
@@ -160,12 +176,17 @@ class PoseGraphOptimization:
 
             # 3D point
             edge.set_vertex(0, point_vertices[observation.point_id]) 
-            # Pose of first camera
+            # Pose of camera
             edge.set_vertex(1, camera_vertices[observation.camera_id]) 
             
             edge.set_measurement(observation.image_coordinates)
             edge.set_information(np.identity(2))
+            #if observation.point_id <= 6:
+            #    edge.set_information(np.identity(2))
+            #else:
+            #    edge.set_information(np.array([[0.01, 0.0],[0.0, 1.0]]))
             edge.set_robust_kernel(g2o.RobustKernelHuber())
+            #edge.set_robust_kernel(g2o.RobustKernelHuber(np.sqrt(5.991)))
 
             edge.set_parameter_id(0, 0)
             optimizer.add_edge(edge)

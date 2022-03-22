@@ -96,6 +96,17 @@ class SkeletalTurbineModel:
         #fig.savefig('/home/magnus/instantiated_model.pdf', bbox_inches='tight')
         plt.show()
         
+    def get_line_steps(self):
+        '''
+        Lines are subdivided into fixed amount of points based on the initial parameters.
+        '''
+        step_sizes = [2, 0.5, 1]
+        tower_step = int(self.h / step_sizes[0])
+        top_step = int(self.r / step_sizes[1])
+        blade_step = int(self.b / step_sizes[2])
+        return [tower_step, top_step, blade_step, blade_step, blade_step]
+        
+        
     def subdivide_lines(self):
         '''
         Subdivides the line models into points along those lines. These points
@@ -103,11 +114,12 @@ class SkeletalTurbineModel:
         with the output from the neural network.
         '''
         # Step sizes in [m] - tower-->top-->wing_center-->wings
-        step_sizes = [2, 0.5, 1, 1, 1]
+        step_sizes = self.get_line_steps()
         lines_divided = []
         for i, line in enumerate(self.line_model):
             mag = np.linalg.norm(line[1]-line[0])
-            steps = int(mag / step_sizes[i])
+            #steps = int(mag / step_sizes[i])
+            steps = step_sizes[i]
             dxyz = mag/steps
             unit_vector = (line[1]-line[0])/mag
             line_divided = []
@@ -201,6 +213,7 @@ class SkeletalTurbineModel:
             cv2.imshow('Projected point model', img)
             cv2.waitKey(0)
         rst_pts = []
+        #TODO: Do I need to round these? Lines divided 2D is floats
         for _pt in img_pts:
             rst_pts.append([int(_pt[0]), int(_pt[1])])
         lines_divided_3d = self.subdivide_lines()
