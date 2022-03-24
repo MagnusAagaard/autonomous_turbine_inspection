@@ -94,8 +94,10 @@ class PoseEstimator:
         '''
         # First pose during STM initialization
         R,t = utils.get_pose_from_pose_msg(init_cam_pose)
-        cam = Camera(R=R, t=t, camera_id=self.optimizer.increment_id(), fixed=True)
-        self.optimizer.cameras.append(cam)
+        #cam = Camera(R=R, t=t, camera_id=self.optimizer.increment_id(), fixed=True)
+        cam = Camera(R=R, t=t, fixed=True)
+        cam = self.optimizer.add_camera(cam)
+        #self.optimizer.cameras.append(cam)
         # Add 3D points and lines
         self.optimizer.add_point_model_to_points(self.stm.point_model)
         self.optimizer.add_line_model_to_points(self.stm.subdivide_lines())
@@ -134,12 +136,14 @@ class PoseEstimator:
                 #TODO: Make a way to process it all and save a number of point correspondences
                 # checking whether they are present in the current image or not
                 # Also: Add function that removes current observations with high reprojection error to avoid drifting?
-                search_radius = 14
-                search_dist = 8
-                new_kps = self.process_inference_output(kps, lines_divided_2d, output, search_radius, search_dist, input_img)
+                search_radius = 40
+                search_dist = 10
+                new_kps = self.process_inference_output(kps, lines_divided_2d, output, search_radius, search_dist, input_img, use_line_fit=False)
                 if (rospy.Time.now() - self.last_optimization_time) > self.time_between_optimizations:
-                    cam = Camera(R=R, t=t, camera_id=self.optimizer.increment_id(), fixed=False)
-                    self.optimizer.cameras.append(cam)
+                    #cam = Camera(R=R, t=t, camera_id=self.optimizer.increment_id(), fixed=False)
+                    cam = Camera(R=R, t=t)
+                    cam = self.optimizer.add_camera(cam)
+                    #self.optimizer.cameras.append(cam)
                     self.optimizer.create_observations(new_kps, cam.camera_id)
                     #print(f'Point model: {self.stm.point_model}')
                     self.optimizer.optimize()
@@ -233,87 +237,144 @@ class PoseEstimator:
         for i, pt in enumerate(kps[5:]):
             pt = self.inferencer.downscale_pt(pt, self.img_shape)
             new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,4+i+2], pt, scaled_search_radius, self.img_shape, upscale=True))
-        # # Lines
-        # for i, line in enumerate(lines_divided_2d[:1]):
-        #     # Vector from first pt to last pt (line vector)
-        #     v = line[-1] - line[0]
-        #     # Unit vector
-        #     unit_v = v/np.linalg.norm(v)
-        #     # Vector perpendicular to line
-        #     unit_v_perp = np.array([unit_v[1], -unit_v[0]])
-        #     line_pts = []
-        #     for pt in line:
-        #         pt = self.inferencer.downscale_pt(pt, self.img_shape)
-        #         line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,7+i], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
-        #     if use_line_fit:
-        #         l1 = self.inferencer.fit_line_to_pts(line_pts)
-        #     else:
-        #         l1 = None
-        #     if l1 is not None:
-        #         a1, b1, c1 = l1.ravel()
-        #         y1 = np.array([200, 400])
-        #         if a1 > 0 and a1 < 1e-6:
-        #             a1 = 1e-6
-        #         elif a1 < 0 and a1 > -1e-6:
-        #             a1 = -1e-6
-        #         x1 = -(b1*y1 + c1) / a1
-        #         cv2.line(input_img, (int(x1[0]), int(y1[0])), (int(x1[1]), int(y1[1])), (255,0,255), 1)
-        #         #print(f'l1: {l1}')
-        #         for pt in line:
-        #             pt1 = np.array([pt[0] - search_dist*unit_v_perp[0], pt[1] - search_dist*unit_v_perp[1], 1])
-        #             pt2 = np.array([pt[0] + search_dist*unit_v_perp[0], pt[1] + search_dist*unit_v_perp[1], 1])
-        #             l2 = np.cross(pt1,pt2)
-        #             #a2, b2, c2 = l2.ravel()
-        #             #x2 = np.array([200, 400])
-        #             #y2 = -(a2*x2 + c2) / b2
-        #             #cv2.line(input_img, (int(x2[0]), int(y2[0])), (int(x2[1]), int(y2[1])), (255,255,0), 1)
-        #             #print(f'l2: {l2}')
-        #             intersection_pt = np.cross(l1,l2)
-        #             if intersection_pt[2] != 0:
-        #                 intersection_pt /= intersection_pt[2]
-        #             #print(intersection_pt)
-        #             new_kps.append(intersection_pt[:2])
-        #     else:
-        #         for pt in line_pts:
-        #             new_kps.append(pt)
-        # for i, line in enumerate(lines_divided_2d[2:]):
-        #     # Vector from first pt to last pt (line vector)
-        #     v = line[-1] - line[0]
-        #     # Unit vector
-        #     unit_v = v/np.linalg.norm(v)
-        #     # Vector perpendicular to line
-        #     unit_v_perp = np.array([unit_v[1], -unit_v[0]])
-        #     line_pts = []
-        #     for pt in line:
-        #         pt = self.inferencer.downscale_pt(pt, self.img_shape)
-        #         line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,9], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
-        #     if use_line_fit:
-        #         l1 = self.inferencer.fit_line_to_pts(line_pts)
-        #     else:
-        #         l1 = None
-        #     if l1 is not None:
-        #         #print(f'l1: {l1}')
-        #         a1, b1, c1 = l1.ravel()
-        #         if b1 > 0 and b1 < 1e-6:
-        #             b1 = 1e-6
-        #         elif b1 < 0 and b1 > -1e-6:
-        #             b1 = -1e-6
-        #         x1 = np.array([200, 400])
-        #         y1 = -(a1*x1 + c1) / b1
-        #         cv2.line(input_img, (int(x1[0]), int(y1[0])), (int(x1[1]), int(y1[1])), (255,0,255), 1)
-        #         for pt in line:
-        #             pt1 = np.array([pt[0] - search_dist*unit_v_perp[0], pt[1] - search_dist*unit_v_perp[1], 1])
-        #             pt2 = np.array([pt[0] + search_dist*unit_v_perp[0], pt[1] + search_dist*unit_v_perp[1], 1])
-        #             l2 = np.cross(pt1,pt2)
-        #             #print(f'l2: {l2}')
-        #             intersection_pt = np.cross(l1,l2)
-        #             if intersection_pt[2] > 0:
-        #                 intersection_pt /= intersection_pt[2]
-        #             #print(intersection_pt)
-        #             new_kps.append(intersection_pt[:2])
-        #     else:
-        #         for pt in line_pts:
-        #             new_kps.append(pt)
+        #for line in lines_divided_2d:
+        #   for pt in line:
+        #       new_kps.append([int(pt[0]), int(pt[1])])
+        # Lines
+        tower_line = None
+        top_line = None
+        for i, line in enumerate(lines_divided_2d[:2]):
+            # Vector from first pt to last pt (line vector)
+            v = line[-1] - line[0]
+            # Unit vector
+            unit_v = v/np.linalg.norm(v)
+            # Vector perpendicular to line
+            unit_v_perp = np.array([unit_v[1], -unit_v[0]])
+            line_pts = []
+            for pt in line:
+                pt = self.inferencer.downscale_pt(pt, self.img_shape)
+                line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,7+i], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
+            if use_line_fit:
+                l1 = self.inferencer.fit_line_to_pts(line_pts)
+            else:
+                l1 = None
+            if l1 is not None:
+                if i == 0:
+                    tower_line = l1.copy()
+                elif i==1:
+                    top_line = l1.copy()
+                a1, b1, c1 = l1.ravel()
+                if i == 0:
+                    y1 = np.array([200, 400])
+                    if a1 > 0 and a1 < 1e-6:
+                        a1 = 1e-6
+                    elif a1 < 0 and a1 > -1e-6:
+                        a1 = -1e-6
+                    x1 = -(b1*y1 + c1) / a1
+                elif i == 1:
+                    x1 = np.array([300, 370])
+                    if b1 > 0 and b1 < 1e-6:
+                        b1 = 1e-6
+                    elif b1 < 0 and b1 > -1e-6:
+                        b1 = -1e-6
+                    y1 = -(a1*x1 + c1) / b1
+                cv2.line(input_img, (int(x1[0]), int(y1[0])), (int(x1[1]), int(y1[1])), (255,0,255), 1)
+                #print(f'l1: {l1}')
+                for pt in line:
+                    pt1 = np.array([pt[0] - search_dist*unit_v_perp[0], pt[1] - search_dist*unit_v_perp[1], 1])
+                    pt2 = np.array([pt[0] + search_dist*unit_v_perp[0], pt[1] + search_dist*unit_v_perp[1], 1])
+                    l2 = np.cross(pt1,pt2)
+                    #a2, b2, c2 = l2.ravel()
+                    #x2 = np.array([200, 400])
+                    #y2 = -(a2*x2 + c2) / b2
+                    #cv2.line(input_img, (int(x2[0]), int(y2[0])), (int(x2[1]), int(y2[1])), (255,255,0), 1)
+                    #print(f'l2: {l2}')
+                    intersection_pt = np.cross(l1,l2)
+                    if intersection_pt[2] != 0:
+                        intersection_pt /= intersection_pt[2]
+                    #print(intersection_pt)
+                    new_kps.append([int(intersection_pt[0]), int(intersection_pt[1])])
+            else:
+                for pt in line_pts:
+                    new_kps.append([int(pt[0]), int(pt[1])])
+        wing_line1 = None
+        wing_line2 = None
+        wing_line3 = None
+        for i, line in enumerate(lines_divided_2d[2:]):
+            # Vector from first pt to last pt (line vector)
+            v = line[-1] - line[0]
+            # Unit vector
+            unit_v = v/np.linalg.norm(v)
+            # Vector perpendicular to line
+            unit_v_perp = np.array([unit_v[1], -unit_v[0]])
+            line_pts = []
+            for pt in line:
+                pt = self.inferencer.downscale_pt(pt, self.img_shape)
+                line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,9], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
+            if use_line_fit:
+                l1 = self.inferencer.fit_line_to_pts(line_pts)
+            else:
+                l1 = None
+            if l1 is not None:
+                #print(f'l1: {l1}')
+                if i == 0:
+                    wing_line1 = l1.copy()
+                elif i == 1:
+                    wing_line2 = l1.copy()
+                elif i == 2:
+                    wing_line3 = l1.copy()
+                a1, b1, c1 = l1.ravel()
+                if b1 > 0 and b1 < 1e-6:
+                    b1 = 1e-6
+                elif b1 < 0 and b1 > -1e-6:
+                    b1 = -1e-6
+                x1 = np.array([200, 400])
+                y1 = -(a1*x1 + c1) / b1
+                cv2.line(input_img, (int(x1[0]), int(y1[0])), (int(x1[1]), int(y1[1])), (255,0,255), 1)
+                for pt in line:
+                    pt1 = np.array([pt[0] - search_dist*unit_v_perp[0], pt[1] - search_dist*unit_v_perp[1], 1])
+                    pt2 = np.array([pt[0] + search_dist*unit_v_perp[0], pt[1] + search_dist*unit_v_perp[1], 1])
+                    l2 = np.cross(pt1,pt2)
+                    #print(f'l2: {l2}')
+                    intersection_pt = np.cross(l1,l2)
+                    if intersection_pt[2] != 0:
+                        intersection_pt /= intersection_pt[2]
+                    #print(intersection_pt)
+                    new_kps.append([int(intersection_pt[0]), int(intersection_pt[1])])
+            else:
+                for pt in line_pts:
+                    new_kps.append([int(pt[0]), int(pt[1])])
+        # if tower_line is not None and top_line is not None:
+        #    intersection_pt = np.cross(tower_line, top_line)
+        #    if intersection_pt[2] != 0:
+        #        intersection_pt /= intersection_pt[2]
+        #    new_kps[4] = ([int(intersection_pt[0]), int(intersection_pt[1])])
+        # if wing_line1 is not None and wing_line2 is not None and wing_line3 is not None:
+        #     intersections = []
+        #     intersections.append(np.cross(wing_line1, wing_line2))
+        #     intersections.append(np.cross(wing_line2, wing_line3))
+        #     intersections.append(np.cross(wing_line1, wing_line3))
+        #     intersections = np.array(intersections)
+        #     # Back to cartesian space (x,y)
+        #     intersections = np.array([intersection[:2] / intersection[2] if intersection[2] != 0 else [np.NAN, np.NAN] for intersection in intersections])
+        #     # Check for any NaNs (division by 0..)
+        #     if not np.any(np.isnan(intersections).flatten()):
+        #         # Calculate centroid of intersections (x,y) and round to int
+        #         centroid = (np.sum(intersections, axis=0)/len(intersections)).astype(int)
+        #         new_kps[3] = centroid.copy()
+        #     if tower_line is not None:
+        #         intersections = []
+        #         intersections.append(np.cross(tower_line, wing_line1))
+        #         intersections.append(np.cross(tower_line, wing_line2))
+        #         intersections.append(np.cross(tower_line, wing_line3))
+        #         intersections = np.array(intersections)
+        #         # Back to cartesian space (x,y)
+        #         intersections = np.array([intersection[:2] / intersection[2] if intersection[2] != 0 else [np.NAN, np.NAN] for intersection in intersections])
+        #         # Check for any NaNs (division by 0..)
+        #         if not np.any(np.isnan(intersections).flatten()):
+        #             # Calculate centroid of intersections (x,y) and round to int
+        #             centroid = (np.sum(intersections, axis=0)/len(intersections)).astype(int)
+        #             new_kps[4] = centroid.copy()
         return new_kps
 
     def get_extrensic_parameters(self):
