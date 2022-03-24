@@ -100,7 +100,7 @@ class SkeletalTurbineModel:
         '''
         Lines are subdivided into fixed amount of points based on the initial parameters.
         '''
-        step_sizes = [2, 0.5, 1]
+        step_sizes = [5, 1, 2]
         tower_step = int(self.h / step_sizes[0])
         top_step = int(self.r / step_sizes[1])
         blade_step = int(self.b / step_sizes[2])
@@ -196,7 +196,7 @@ class SkeletalTurbineModel:
             # Perspective transform
             point = P @ point
             # Re-scale homogenous point
-            if point[2] > 0:
+            if point[2] != 0:
                 point /= point[2]
             img_pts[i,:] = point[:2]
         # Show results
@@ -226,7 +226,7 @@ class SkeletalTurbineModel:
                 # Perspective transform
                 point = P @ point
                 # Re-scale homogenous point
-                if point[2] > 0:
+                if point[2] != 0:
                     point /= point[2]
                 line_divided_2d.append(point[:2])
             lines_divided_2d.append(line_divided_2d)
