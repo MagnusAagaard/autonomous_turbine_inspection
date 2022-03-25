@@ -203,10 +203,14 @@ class PoseGraphOptimization:
     def get_relative_pose(self, R1, t1, R2, t2):
         '''
         Calculates relative pose between two camera poses
+        Pose 1 in world frame
+        Pose 2 in world frame
+        Pose 2 wrt. pose 1 = 
         '''
         pose1 = g2o.SE3Quat(R1, t1)
         pose2 = g2o.SE3Quat(R2, t2)
-        return pose2.inverse()*pose1
+        #return pose2.inverse()*pose1
+        return pose1.inverse()*pose2
     
     def calculate_relative_pose(self, cam1, cam2):
         pose1_R, pose1_t = cam1.original_pose()
@@ -269,6 +273,7 @@ class PoseGraphOptimization:
             # Use positions of 3D points
             point_temp = np.array(point.point, dtype=np.float64)
             vp.set_estimate(point_temp)
+            vp.set_fixed(True)
             optimizer.add_vertex(vp)
             point_vertices[point.point_id]= vp
 
@@ -282,8 +287,8 @@ class PoseGraphOptimization:
             edge.set_vertex(1, camera_vertices[observation.camera_id]) 
             # Image coordinate
             edge.set_measurement(observation.image_coordinates)
-            edge.set_information(np.identity(2))
-            # Try this again, 0.01 and 0.01 to weight line correspondences lower than points
+            #edge.set_information(np.identity(2))
+            # 0.01 and 0.01 to weight line correspondences lower than points
             if observation.point_id >= 6:
                 edge.set_information(np.array([[0.01, 0.0],[0.0, 0.01]]))
             else:
@@ -295,21 +300,13 @@ class PoseGraphOptimization:
             optimizer.add_edge(edge)
         
         for i, camera in enumerate(self.cameras[:-1]):
-            # Add edge from camera to camera
+            # Add edge from camera to camera using internal exponential map
             edge = g2o.EdgeSE3Expmap()
             edge.set_vertex(0, camera_vertices[camera.camera_id])
             edge.set_vertex(1, camera_vertices[self.cameras[i+1].camera_id])
-            
-            # Measurement should be relative camera movement
-            
+            # Measurement should be relative camera movement ie. pose 2 wrt. pose 1
             measurement = camera.relative_pose
-            #v2->estimate().inverse()*C*v1->estimate();
-            C = measurement
-            v2 = camera_vertices[self.cameras[i+1].camera_id].estimate()
-            v1 = camera_vertices[camera.camera_id].estimate()
-            #print((v2.inverse()*C*v1).to_vector())
-            #print((C.inverse()*v1.inverse()*v2).to_vector())
-            self.check_error_calculations(camera, self.cameras[i+1])
+            #self.check_error_calculations(camera, self.cameras[i+1])
             edge.set_measurement(measurement)
             # Error in orientation weights high (meaning we are quite sure about our orientation from PX4)
             # Error in translation weights low (more room for translating the pose)
