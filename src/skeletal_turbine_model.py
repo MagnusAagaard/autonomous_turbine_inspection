@@ -4,7 +4,7 @@ import cv2
 # Plotting
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from utils import get_rotation_matrix, get_rotation_matrix_from_world_to_camera_frame
+from utils import get_rotation_matrix, get_rotation_matrix_from_world_to_camera_frame, convert_pose_to_camera_frame
 
 class SkeletalTurbineModel:
     def __init__(self, c=(0,0), h=71.74-8, omega=np.pi-np.pi/4, r=5.16, phi=0, b=35.1):
@@ -100,7 +100,7 @@ class SkeletalTurbineModel:
         '''
         Lines are subdivided into fixed amount of points based on the initial parameters.
         '''
-        step_sizes = [5, 1, 2]
+        step_sizes = [1, 1, 1]
         tower_step = int(self.h / step_sizes[0])
         top_step = int(self.r / step_sizes[1])
         blade_step = int(self.b / step_sizes[2])
@@ -131,7 +131,7 @@ class SkeletalTurbineModel:
         return lines_divided
             
 
-    def project_model_to_image(self, img=None, K=None, cam_pose=None, show_img=False):
+    def project_model_to_image(self, img=None, K=None, cam_pose=None, pose_in_world_frame=False, show_img=False):
         # Project the model into image coordinate system (2D)
         if img is None:
             img_h = 480
@@ -155,6 +155,8 @@ class SkeletalTurbineModel:
             #print(cam_pose)
             #cam_pose = np.column_stack((R, t))
         # Projection matrix P = K [R|t]
+        if pose_in_world_frame:
+            cam_pose = convert_pose_to_camera_frame(cam_pose)
         # For init point model
         P = K @ cam_pose
         img_pts_init = np.zeros((6,2))
