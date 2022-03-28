@@ -32,20 +32,47 @@ def get_rotation_matrix_from_world_to_camera_frame():
     R = np.array([[0, -1, 0], [0,0,-1], [1,0,0]])
     return R
 
-def get_pose_from_pose_msg(pose_msg):
+def get_camera_pose_from_pose_msg(pose_msg):
     '''
-    Returns R, t in world frame, given a PoseStamped.pose msg in camera frame.
+    Returns R,t in camera frame, given a PoseStamped.pose_msg in world frame
     '''
     x = pose_msg.pose.position.x
     y = pose_msg.pose.position.y
     z = pose_msg.pose.position.z
     t_cam = np.array([x, y, z])
-    R_cam = quarternion_to_rotation_matrix(pose_msg.pose.orientation, inverse=True)
+    R_cam_inv = quarternion_to_rotation_matrix(pose_msg.pose.orientation, inverse=True)
     Rex = get_rotation_matrix_from_world_to_camera_frame()
-    # Transform from camera to world frame
-    R = Rex @ R_cam
-    t = -Rex @ R_cam @ t_cam
+    # Transform from world to camera frame (axis rotation)
+    # Take rotation matrix given in world coordinates and transform to camera axis
+    R = Rex @ R_cam_inv
+    # Translate camera -tx
+    t = -Rex @ R_cam_inv @ t_cam
     return R,t
+
+def get_world_pose_from_pose_msg(pose_msg):
+    '''
+    Returns R, t in world frame, given a PoseStamped.pose msg in world frame.
+    '''
+    x = pose_msg.pose.position.x
+    y = pose_msg.pose.position.y
+    z = pose_msg.pose.position.z
+    t_w = np.array([x, y, z])
+    R_w = quarternion_to_rotation_matrix(pose_msg.pose.orientation, inverse=False)
+
+    return R_w,t_w
+
+def convert_pose_to_camera_frame(cam_pose_w):
+    '''
+    Returns cam_pose in camera frame given cam_pose in world frame
+    '''
+    cam_pose_c = np.ones((3,4))
+    R = cam_pose_w[:3,:3]
+    t = cam_pose_w[:3,3]
+    Rex = get_rotation_matrix_from_world_to_camera_frame()
+    cam_pose_c[:3,:3] = Rex @ np.linalg.inv(R)
+    cam_pose_c[:3,3] = -Rex @ np.linalg.inv(R) @ t
+    return cam_pose_c
+    
     
 def quarternion_to_rotation_matrix(q, inverse=False):
     """
