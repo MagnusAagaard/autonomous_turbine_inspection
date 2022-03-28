@@ -11,6 +11,8 @@ import numpy as np
 
 from tf.transformations import quaternion_from_euler
 
+from itertools import chain
+
 
 class DroneControl:
     def __init__(self):
@@ -130,9 +132,15 @@ class DroneControl:
             self.rate.sleep()
             if(self.distance_to_target(target_position) < 0.50):
                 if wp_it == 0 and hold_first_position:
-                    rospy.loginfo('Holding first position for 10 sec..')
+                    rospy.loginfo('Holding first position for 30 sec..')
                     now = rospy.Time.now()
                     while (rospy.Time.now() - now) < rospy.Duration(secs=30):
+                        self.target_pos_pub.publish(target_position)
+                        self.rate.sleep()
+                elif wp_it > 0:
+                    rospy.loginfo('Holding position for 10 sec..')
+                    now = rospy.Time.now()
+                    while (rospy.Time.now() - now) < rospy.Duration(secs=10):
                         self.target_pos_pub.publish(target_position)
                         self.rate.sleep()
                 rospy.loginfo('Next waypoint')
@@ -161,11 +169,15 @@ def main():
     rospy.init_node('drone_control', anonymous=True)
     drone = DroneControl()
     #waypoints = [[x,y,z,q1,q2,q3,q4],...]
-    #q = quaternion_from_euler(0,0,pi/8)
-    q = quaternion_from_euler(0,0,0)
-    waypoints = [[10,0,drone.altitude, 0, 0, 0, 0], [10, 0, drone.altitude, q[0],q[1],q[2],q[3]]]
-    #waypoints = drone.create_circular_waypoints(center=[110,0], radius=100)
-    drone.fly_route(waypoints=waypoints, hold_first_position=False)
+    q = quaternion_from_euler(0,0,pi/8)
+    #q = quaternion_from_euler(0,0,0)
+    #waypoints = [[10,0,drone.altitude, 0, 0, 0, 0], [10, 0, drone.altitude, q[0],q[1],q[2],q[3]]]
+    waypoints = [[10, i*5, drone.altitude, 0, 0, 0, 0] for i in range(100)]
+    #waypoints = [[10, 0, drone.altitude, 0, 0, 0, 0]]
+    #cricle_points = drone.create_circular_waypoints(center=[110,0], radius=40)
+    #for pt in cricle_points:
+    #    waypoints.append(pt)
+    drone.fly_route(waypoints=waypoints, hold_first_position=True)
     #drone.shutdownDrone()
     rospy.spin()
 
