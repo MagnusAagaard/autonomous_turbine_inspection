@@ -205,36 +205,39 @@ class PoseGraphOptimization:
         Calculates relative pose between two camera poses
         Pose 1 in world frame
         Pose 2 in world frame
-        Pose 2 wrt. pose 1 = 
+        Pose 2 wrt. pose 1 = T_ij =  T_1^-1*T2
         '''
-        pose1 = g2o.SE3Quat(R1, t1)
-        pose2 = g2o.SE3Quat(R2, t2)
-        #return pose2.inverse()*pose1
-        return pose1.inverse()*pose2
+        # Rex_inv needs to be removed prior to calculating relative pose and then multiplied on translation vector afterwards
+        # as rotation is already calculating offset between the two rotation poses (q_a^-1*q_b)
+        # Rex @ R needs not to be removed as they will cancel out anyway, but good measure to do both
+        Rex_inv = np.linalg.inv(utils.get_rotation_matrix_from_world_to_camera_frame())
+        pose1 = g2o.SE3Quat(Rex_inv @ R1, Rex_inv @ t1)
+        pose2 = g2o.SE3Quat(Rex_inv @ R2, Rex_inv @ t2)
+        # Relative transformation between pose 1 and 2 in world frame
+        Tij = pose1.inverse()*pose2
+        t_wc = np.zeros((3,1))
+        T_Rex = g2o.SE3Quat(utils.get_rotation_matrix_from_world_to_camera_frame(), t_wc)
+        # Transform translation in world frame to camera frame
+        T_trans = T_Rex * Tij
+        Tij.set_translation(T_trans.translation())
+        return Tij
     
     def calculate_relative_pose(self, cam1, cam2):
         pose1_R, pose1_t = cam1.original_pose()
         pose2_R, pose2_t = cam2.original_pose()
         cam1.relative_pose = self.get_relative_pose(pose1_R, pose1_t, pose2_R, pose2_t)
         
-    def check_error_calculations(self, cam1, cam2):
-        pose1 = cam1.pose()
-        pose2 = cam2.pose()
-        pose1_ori_R, pose1_ori_t = cam1.original_pose()
-        pose2_ori_R, pose2_ori_t = cam2.original_pose()
-        p_a_hat = g2o.SE3Quat(pose2[:3,:3], pose2[:3,3])
-        p_b_hat = g2o.SE3Quat(pose1[:3,:3], pose1[:3,3])
-        p_a = g2o.SE3Quat(pose2_ori_R, pose2_ori_t)
-        p_b = g2o.SE3Quat(pose1_ori_R, pose1_ori_t)
-        p_ab_hat = p_a_hat.inverse()*p_b_hat
-        p_ab = p_a.inverse()*p_b
-        e1 = p_ab_hat.translation() - p_ab.translation()
-        C = p_ab
-        e2 = (p_a_hat.inverse()*p_b_hat).translation() - C.translation()
-        e3 = p_ab.inverse()*(p_a_hat.inverse()*p_b_hat)
-        #print(f'e1: {e1}')
-        #print(f'e2: {e2}')
-        #print(f'e3: {e3.translation()}')
+    def check_relative_pose(self, cam1, cam2):
+        pose1_R, pose1_t = cam1.original_pose()
+        pose2_R, pose2_t = cam2.original_pose()
+        p1 = np.identity(4)
+        p2 = np.identity(4)
+        p1[:3,:3] = pose1_R
+        p1[:3,3] = pose1_t
+        p2[:3,:3] = pose2_R
+        p2[:3,3] = pose2_t
+        Tij = np.linalg.inv(p1) @ p2
+        print(Tij)
         
     def optimize(self):
         optimizer = g2o.SparseOptimizer()
@@ -251,6 +254,11 @@ class PoseGraphOptimization:
         #self.freeze_nonlast_cameras(number_of_non_fixed_cameras=10)
         self.limit_number_of_cameras(limit=20)
         self.unfreeze_cameras(number_of_fixed_cameras=1)
+        
+        #print(f'Obs before reprojection error adjustment: {len(self.observations)}')
+        #self.remove_observations_with_reprojection_errors_above_threshold(10)
+        #print(f'Obs after reprojection error adjustment: {len(self.observations)}')
+        
         camera_vertices = {}
         for camera in self.cameras:
             # Use the estimated pose of the camera
@@ -287,7 +295,7 @@ class PoseGraphOptimization:
             edge.set_vertex(1, camera_vertices[observation.camera_id]) 
             # Image coordinate
             edge.set_measurement(observation.image_coordinates)
-            #edge.set_information(np.identity(2))
+            edge.set_information(np.identity(2))
             # 0.01 and 0.01 to weight line correspondences lower than points
             if observation.point_id >= 6:
                 edge.set_information(np.array([[0.01, 0.0],[0.0, 0.01]]))
@@ -304,16 +312,19 @@ class PoseGraphOptimization:
             edge = g2o.EdgeSE3Expmap()
             edge.set_vertex(0, camera_vertices[camera.camera_id])
             edge.set_vertex(1, camera_vertices[self.cameras[i+1].camera_id])
-            # Measurement should be relative camera movement ie. pose 2 wrt. pose 1
+            # Measurement should be relative camera movement ie. pose 2 wrt. pose 1 in camera frame
             measurement = camera.relative_pose
-            #self.check_error_calculations(camera, self.cameras[i+1])
+            #print('Relative pose SE3Quat: {}'.format(measurement.to_vector()))
+            #print('Relative orientation: {}'.format(utils.quarternion_to_rotation_matrix_g2o(measurement.rotation())))
+            #print(f'P1: {camera_vertices[camera.camera_id].estimate().to_vector()}')
+            #print(f'P2: {camera_vertices[self.cameras[i+1].camera_id].estimate().to_vector()}')
             edge.set_measurement(measurement)
             # Error in orientation weights high (meaning we are quite sure about our orientation from PX4)
             # Error in translation weights low (more room for translating the pose)
             information = np.identity(6)
-            information[0,0] = 0.01
-            information[1,1] = 0.01
-            information[2,2] = 0.01
+            #information[0,0] = 0.5
+            #information[1,1] = 0.5
+            #information[2,2] = 0.5
             edge.set_information(information)
             edge.set_robust_kernel(g2o.RobustKernelHuber())
             edge.set_parameter_id(0,0)
@@ -322,13 +333,10 @@ class PoseGraphOptimization:
 
         print('num vertices:', len(optimizer.vertices()))
         print('num edges:', len(optimizer.edges()))
-        #print(f'Obs before reprojection error adjustment: {len(self.observations)}')
-        #self.remove_observations_with_reprojection_errors_above_threshold(1)
-        #print(f'Obs after reprojection error adjustment: {len(self.observations)}')
 
         print('Performing full BA:')
         optimizer.initialize_optimization()
-        optimizer.set_verbose(True)
+        optimizer.set_verbose(False)
         optimizer.optimize(20)
         optimizer.save("test.g2o")
 
