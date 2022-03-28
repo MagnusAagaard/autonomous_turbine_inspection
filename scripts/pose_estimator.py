@@ -48,7 +48,8 @@ class PoseEstimator:
         self.last_optimization_time = rospy.Time.now()
         # Half a second
         #self.time_between_optimizations = rospy.Duration(secs=0, nsecs=500000000)
-        self.time_between_optimizations = rospy.Duration(secs=5, nsecs=0)
+        self.time_between_optimizations = rospy.Duration(secs=1, nsecs=0)
+        self.time_before_running_optimization = rospy.Duration(secs=1, nsecs=0)
         self._init_skeletal_model()
 
     def _init_subscribers(self):
@@ -93,7 +94,7 @@ class PoseEstimator:
         Initialize optimizer with first camera pose during skeletal model initiliaztion and keypoints.
         '''
         # First pose during STM initialization
-        R,t = utils.get_pose_from_pose_msg(init_cam_pose)
+        R,t = utils.get_camera_pose_from_pose_msg(init_cam_pose)
         #cam = Camera(R=R, t=t, camera_id=self.optimizer.increment_id(), fixed=True)
         cam = Camera(R=R, t=t, fixed=True)
         cam = self.optimizer.add_camera(cam)
@@ -102,13 +103,14 @@ class PoseEstimator:
         self.optimizer.add_point_model_to_points(self.stm.point_model)
         self.optimizer.add_line_model_to_points(self.stm.subdivide_lines())
         # Project points to 2D and add observations
-        points_2d, lines_divided_2d = self.stm.project_model_to_image(img=init_img, K=self.K, cam_pose=np.column_stack((R,t)))
+        points_2d, lines_divided_2d = self.stm.project_model_to_image(img=init_img, K=self.K, cam_pose=np.column_stack((R,t)), pose_in_world_frame=False)
         lines_divided_2d.insert(0,points_2d)
         list_of_2d_pts = list(chain.from_iterable(lines_divided_2d))
         self.optimizer.create_observations(list_of_2d_pts, cam.camera_id)
-        self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
+        #self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
         self.last_optimization_time = rospy.Time.now()
         self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
+        self.launch_time = rospy.Time.now()
         
     def __trigger_cb(self, msg):
         self.trigger_save = msg.data
@@ -124,22 +126,23 @@ class PoseEstimator:
                 self.trigger_save = False
             if self.stm:
                 #if self.est_pose is None:
-                R,t = utils.get_pose_from_pose_msg(self.pose)
+                R,t = utils.get_camera_pose_from_pose_msg(self.pose)
                 cam_pose = np.column_stack((R,t))
+                #print(cam_pose)
                 #else:
                 #    R = self.est_pose[:,:3]
                 #    t = self.est_pose[:,3]
                 #    cam_pose = np.column_stack((R,t))
                 #cam_pose = self.get_extrensic_parameters()
-                kps, lines_divided_2d = self.stm.project_model_to_image(img=drone_img, K=self.K, cam_pose=cam_pose)
+                kps, lines_divided_2d = self.stm.project_model_to_image(img=drone_img, K=self.K, cam_pose=cam_pose, pose_in_world_frame=False)
                 output = self.inferencer.forward(input_img, kps)
                 #TODO: Make a way to process it all and save a number of point correspondences
                 # checking whether they are present in the current image or not
                 # Also: Add function that removes current observations with high reprojection error to avoid drifting?
                 search_radius = 40
-                search_dist = 10
+                search_dist = 15
                 new_kps = self.process_inference_output(kps, lines_divided_2d, output, search_radius, search_dist, input_img, use_line_fit=False)
-                if (rospy.Time.now() - self.last_optimization_time) > self.time_between_optimizations:
+                if (rospy.Time.now() - self.launch_time) > self.time_before_running_optimization and (rospy.Time.now() - self.last_optimization_time) > self.time_between_optimizations:
                     #cam = Camera(R=R, t=t, camera_id=self.optimizer.increment_id(), fixed=False)
                     cam = Camera(R=R, t=t)
                     cam = self.optimizer.add_camera(cam)
@@ -169,12 +172,12 @@ class PoseEstimator:
                 # for pt in kps[:3]:
                 #     pt = self.inferencer.downscale_pt(pt, input_img.shape)
                 #     test_pt = self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,3], pt, scaled_search_radius, input_img.shape, upscale=True)
-                #     cv2.circle(input_img, test_pt, 3, (0,0,255), 1)
+                #     cv2.circle(input_img, test_pt, 3, (255,0,0), 1)
                 # # Rest
-                # for i, pt in enumerate(kps[5:]):
+                # for i, pt in enumerate(kps[3:]):
                 #     pt = self.inferencer.downscale_pt(pt, input_img.shape)
                 #     test_pt = self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,4+i+2], pt, scaled_search_radius, input_img.shape, upscale=True)
-                #     cv2.circle(input_img, test_pt, 3, (0,0,255), 1)
+                #     cv2.circle(input_img, test_pt, 3, (255,0,0), 1)
                 # # Lines
                 # scaled_search_dist = np.ceil(0.4*search_dist).astype('int')   # As scale factor is 0.4 when downscaling
                 # for i, line in enumerate(lines_divided_2d[:2]):
@@ -185,9 +188,9 @@ class PoseEstimator:
                 #     # Vector perpendicular to line
                 #     unit_v_perp = np.array([unit_v[1], -unit_v[0]])
                 #     for pt in line:
-                #         #pt1 = (int(pt[0] - search_dist*unit_v_perp[0]), int(pt[1] - search_dist*unit_v_perp[1]))
-                #         #pt2 = (int(pt[0] + search_dist*unit_v_perp[0]), int(pt[1] + search_dist*unit_v_perp[1]))
-                #         #cv2.line(input_img, pt1, pt2, (255,0,0), 2)
+                #         pt1 = (int(pt[0] - search_dist*unit_v_perp[0]), int(pt[1] - search_dist*unit_v_perp[1]))
+                #         pt2 = (int(pt[0] + search_dist*unit_v_perp[0]), int(pt[1] + search_dist*unit_v_perp[1]))
+                #         cv2.line(input_img, pt1, pt2, (255,0,0), 2)
                 #         pt = self.inferencer.downscale_pt(pt, input_img.shape)
                 #         test_pt = self.inferencer.get_line_from_heatmap(output[:,:,7+i], pt, unit_v_perp, scaled_search_dist, input_img.shape, upscale=True)
                 #         cv2.circle(input_img, test_pt, 3, (0,255,0), 1)
@@ -199,9 +202,9 @@ class PoseEstimator:
                 #     # Vector perpendicular to line
                 #     unit_v_perp = np.array([unit_v[1], -unit_v[0]])
                 #     for pt in line:
-                #         #pt1 = (int(pt[0] - search_dist*unit_v_perp[0]), int(pt[1] - search_dist*unit_v_perp[1]))
-                #         #pt2 = (int(pt[0] + search_dist*unit_v_perp[0]), int(pt[1] + search_dist*unit_v_perp[1]))
-                #         #cv2.line(input_img, pt1, pt2, (255,0,0), 2)
+                #         pt1 = (int(pt[0] - search_dist*unit_v_perp[0]), int(pt[1] - search_dist*unit_v_perp[1]))
+                #         pt2 = (int(pt[0] + search_dist*unit_v_perp[0]), int(pt[1] + search_dist*unit_v_perp[1]))
+                #         cv2.line(input_img, pt1, pt2, (255,0,0), 2)
                 #         pt = self.inferencer.downscale_pt(pt, input_img.shape)
                 #         test_pt = self.inferencer.get_line_from_heatmap(output[:,:,9].copy(), pt, unit_v_perp, scaled_search_dist, input_img.shape, upscale=True)
                 #         cv2.circle(input_img, test_pt, 3, (0,0,255), 1)
@@ -222,8 +225,8 @@ class PoseEstimator:
         output from the neural network and processes it.
         Returns 2D kp locations in image.
         '''
-        scaled_search_radius = np.ceil(0.4*search_radius).astype('int')   # As scale factor is 0.4 when downscaling
-        scaled_search_dist = np.ceil(0.4*search_dist).astype('int')   # As scale factor is 0.4 when downscaling
+        scaled_search_radius = np.ceil(0.54*search_radius).astype('int')   # As scale factor is 0.4 when downscaling
+        scaled_search_dist = np.ceil(0.54*search_dist).astype('int')   # As scale factor is 0.4 when downscaling
         # Wing tips
         new_kps = []
         for pt in kps[:3]:
