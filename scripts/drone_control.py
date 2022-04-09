@@ -1,18 +1,19 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import rospy
 import mavros
-from std_msgs.msg import Header, Bool
+from std_msgs.msg import Header, Bool, Float32MultiArray
 from geometry_msgs.msg import PoseStamped
 from mavros_msgs.msg import State
 from mavros_msgs.srv import CommandBool, SetMode, CommandTOL
 from math import sqrt, pi, atan2
 import numpy as np
 
-from tf.transformations import quaternion_from_euler
+#from tf.transformations import quaternion_from_euler
+from skeletal_turbine_model import SkeletalTurbineModel
+import utils
 
 from itertools import chain
-
 
 class DroneControl:
     def __init__(self):
@@ -22,21 +23,27 @@ class DroneControl:
         self.home_position = None
         self.current_position = PoseStamped()
         self.altitude = 65
+        self.stm = None
         # Setup stuff
         self._init_publishers()
         self._init_subscribers()
         self._init_services()
         # Setup drone (arm and takeoff)
         self.setup_drone()
-
+        self.go_to_next_wp = True
+        
     def _init_publishers(self):
         # Setup publishers
         self.target_pos_pub = rospy.Publisher("/mavros/setpoint_position/local", PoseStamped, queue_size=1)
+        self.toggle_pose_estimator_pub = rospy.Publisher('/drone_control/toggle_pose_estimator', Bool, queue_size=1)
 
     def _init_subscribers(self):
         # Setup subscribers
         self.state_sub = rospy.Subscriber('/mavros/state', State, self._state_cb)
         self.pos_sub = rospy.Subscriber("/mavros/local_position/pose", PoseStamped, self._position_cb)
+        self.optimized_pose_sub = rospy.Subscriber('/pose_estimator/optimized_pose', PoseStamped, self._optimized_pose_cb)
+        self.next_wp_sub = rospy.Subscriber('/pose_estimator/next_wp', Bool, self._next_wp_cb)
+        self.turbine_params = rospy.Subscriber('/pose_estimator/turbine_params', Float32MultiArray, self._stm_params_cb)
 
     def _init_services(self):
         # Setup services
@@ -60,6 +67,19 @@ class DroneControl:
         # Save home position
         if self.home_position is None:
             self.home_position = position
+            
+    def _optimized_pose_cb(self, pose):
+        self.optimized_pose = pose
+        
+    def _next_wp_cb(self, msg):
+        self.go_to_next_wp = msg.data
+        
+    def _stm_params_cb(self, params):
+        x = params.data[0]
+        y = params.data[1]
+        yaw = params.data[2]
+        roll = params.data[3]
+        self.stm = SkeletalTurbineModel(c=(x,y), omega=yaw, phi=roll)
 
     def setup_drone(self):
         rospy.loginfo("Waiting for FCU connection...")
@@ -160,24 +180,157 @@ class DroneControl:
         xs = [center[0] + radius*np.sin(np.deg2rad(x-90)) for x in range(360)]
         ys = [center[1] - radius*np.cos(np.deg2rad(y-90)) for y in range(360)]
         angles = [atan2(center[1] - ys[i], center[0] - xs[i]) for i in range(360)]
-        qs = [quaternion_from_euler(0,0,angle) for angle in angles]
+        qs = [utils.quaternion_from_euler(0,0,angle) for angle in angles]
         wps = [[xs[i], ys[i], self.altitude, qs[i][0], qs[i][1], qs[i][2], qs[i][3]] for i in range(360)]
         return wps
+    
+    def cross_lines(self, v1, v2):
+        uv1 = v1 / np.linalg.norm(v1)
+        uv2 = v2 / np.linalg.norm(v2)
+        uv12 = np.cross(uv1, uv2)
+        uv12 /= np.linalg.norm(uv12)
+        return uv12
+    
+    def get_circular_motion_around_wingtip(self, center, radius=15, step_size=10, inverse=False):
+        if inverse:
+            xs = [center[0] + radius*np.sin(self.stm.omega - np.deg2rad(x-90)) for x in range(0, 181, step_size)]
+            ys = [center[1] - radius*np.cos(self.stm.omega - np.deg2rad(y-90)) for y in range(0, 181, step_size)]
+        else:
+            xs = [center[0] + radius*np.sin(self.stm.omega - np.deg2rad(x+90)) for x in range(0, 181, step_size)]
+            ys = [center[1] - radius*np.cos(self.stm.omega - np.deg2rad(y+90)) for y in range(0, 181, step_size)]
+        zs = [center[2] for z in range(0, 181, step_size)]
+        qx = self.current_position.pose.orientation.x
+        qy = self.current_position.pose.orientation.y
+        qz = self.current_position.pose.orientation.z
+        qw = self.current_position.pose.orientation.w
+        pts = [[xs[i], ys[i], zs[i], qx, qy, qz, qw] for i in range(len(xs))]
+        if not inverse:
+            return pts[::-1]
+        return pts
+    
+    def get_wps_from_model_lines(self, model_lines, dist=15):
+        '''
+        Calculates perpendicular line offset to points at certain distance.
+        Model_lines are lines from wing_center --> wing tips
+        '''
+        # Perp vector is wing1 x wing2 == wing1 x wing3 == wing2 x wing3
+        wing1_pts = model_lines[0]
+        wing2_pts = model_lines[1]
+        wing3_pts = model_lines[2]
+        w1_line = np.asarray(wing1_pts[-1] - wing1_pts[0])
+        w2_line = np.asarray(wing2_pts[-1] - wing2_pts[0])
+        p_uv = self.cross_lines(w1_line, w2_line)
+        q = utils.quaternion_from_euler(0,0,pi/8)
+        [10, 0, self.altitude, q[0],q[1],q[2],q[3]]
+        wps = []
+        qx = self.current_position.pose.orientation.x
+        qy = self.current_position.pose.orientation.y
+        qz = self.current_position.pose.orientation.z
+        qw = self.current_position.pose.orientation.w
+        #TODO: Decide which way to go around a wing (depending on orientation of it..)
+        for i, wing in enumerate(model_lines):
+            [wps.append([w[0] + p_uv[0]*dist, w[1] + p_uv[1]*dist, w[2] + p_uv[2]*dist, qx, qy, qz, qw]) for w in wing]
+            inv = True
+            if i%2 == 0:
+                inv = False
+            [wps.append(wp) for wp in self.get_circular_motion_around_wingtip(wing[-1], inverse=inv)]
+            [wps.append([w[0] - p_uv[0]*dist, w[1] - p_uv[1]*dist, w[2] - p_uv[2]*dist, qx, qy, qz, qw]) for w in wing[::-1]]
+        return wps
+    
+    def run_inspection(self, init_pos):
+        '''
+        Creates waypoints around wind turbine, based on current pose estimates
+        '''
+        STATE = 'INIT'
+        current_wp = self.create_pose_from_waypoint(init_pos)
+        wp_it = 0
+        while(STATE != 'TERMINATE'):
+            if STATE == 'INIT':
+                if self.go_to_next_wp:
+                    # Pause pose estimator before moving
+                    self.pause_pose_estimator()
+                    # Fly to waypoint and wait 2 sec.
+                    self.fly_to_wp_and_wait(current_wp)
+                    self.go_to_next_wp = False
+                    # Start initial pose estimation
+                    self.start_pose_estimator()
+                    STATE = 'WAIT_FOR_INIT_POSE'
+            elif STATE == 'WAIT_FOR_INIT_POSE':
+                # Wait for initial pose estimation to finish
+                if self.stm:
+                    rospy.loginfo('Init pose obtained')
+                    self.model_lines = self.stm.subdivide_lines()
+                    # Get perpendicular point at X distance
+                    self.wps = self.get_wps_from_model_lines(self.model_lines[2:])
+                    STATE = 'WAIT_FOR_POSE_ESTIMATOR'
+                else:
+                    self.publish_wp_and_sleep(current_wp)
+            elif STATE == 'WAIT_FOR_POSE_ESTIMATOR':
+                if self.go_to_next_wp:
+                    # Pause pose estimator before moving
+                    self.pause_pose_estimator()
+                    #TODO:
+                    # Calculate offset in pose
+                    # Correct wp with pose offset
+                    # Fly to waypoint and wait 2 sec.
+                    #TODO: Circular motion around wing tip should not wait and should not use pose estimation..
+                    #TODO: Maybe do list of lists of wps again and use a second iterator through them and add another "transition" state
+                    current_wp = self.create_pose_from_waypoint(self.wps[wp_it])
+                    self.fly_to_wp_and_wait(current_wp)
+                    wp_it += 1
+                    if len(self.wps) - wp_it <= 1:
+                        STATE = 'TERMINATE'
+                    self.go_to_next_wp = False
+                    self.start_pose_estimator()
+                else:
+                    self.publish_wp_and_sleep(current_wp)
+        self.pause_pose_estimator()
+        rospy.loginfo('Terminate state reached..')
+        while True:
+            self.publish_wp_and_sleep(current_wp)
+                
+    def pause_pose_estimator(self):
+        self.toggle_pose_estimator_pub.publish(Bool(data=False))
+    
+    def start_pose_estimator(self):
+        self.toggle_pose_estimator_pub.publish(Bool(data=True))
+    
+    def fly_to_wp_and_wait(self, wp):
+        # Flies to waypoint and waits for signal to continue
+        rospy.loginfo('New waypoint recieved.')
+        target_position = wp
+        target_position.header = Header(stamp=rospy.Time.now())
+        while self.distance_to_target(target_position) > 0.50:
+            self.publish_wp_and_sleep(target_position)
+        # Waypoint within 0.5m, hold for 2 sec.
+        rospy.loginfo('Waypoint within 0.5m, hold for 2 sec..')
+        now = rospy.Time.now()
+        while (rospy.Time.now() - now) < rospy.Duration(secs=2):
+            self.publish_wp_and_sleep(target_position)
+            
+    def publish_wp_and_sleep(self, wp):
+        target_position = wp
+        target_position.header = Header(stamp=rospy.Time.now())
+        self.target_pos_pub.publish(target_position)
+        self.rate.sleep()
+        
 
 def main():
     # Main loop
     rospy.init_node('drone_control', anonymous=True)
     drone = DroneControl()
+    init_pos = [10,0,drone.altitude, 0, 0, 0, 0]
+    drone.run_inspection(init_pos)
     #waypoints = [[x,y,z,q1,q2,q3,q4],...]
-    q = quaternion_from_euler(0,0,pi/8)
+    #q = quaternion_from_euler(0,0,pi/8)
     #q = quaternion_from_euler(0,0,0)
     #waypoints = [[10,0,drone.altitude, 0, 0, 0, 0], [10, 0, drone.altitude, q[0],q[1],q[2],q[3]]]
-    waypoints = [[10, i*5, drone.altitude, 0, 0, 0, 0] for i in range(100)]
+    #waypoints = [[10, i*5, drone.altitude, 0, 0, 0, 0] for i in range(100)]
     #waypoints = [[10, 0, drone.altitude, 0, 0, 0, 0]]
     #cricle_points = drone.create_circular_waypoints(center=[110,0], radius=40)
     #for pt in cricle_points:
     #    waypoints.append(pt)
-    drone.fly_route(waypoints=waypoints, hold_first_position=True)
+    #drone.fly_route(waypoints=waypoints, hold_first_position=True)
     #drone.shutdownDrone()
     rospy.spin()
 

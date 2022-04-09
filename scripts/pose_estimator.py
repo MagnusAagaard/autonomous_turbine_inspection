@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 from copy import copy
 
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float32, Float32MultiArray
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped
 from skeletal_turbine_model import SkeletalTurbineModel
@@ -17,7 +17,7 @@ from optimizer import Camera, Point, Observation, PoseGraphOptimization
 import utils
 from itertools import chain
 
-from display import Display3D
+#from display import Display3D
 
 np.set_printoptions(precision=4, suppress=True)
 
@@ -28,7 +28,14 @@ class PoseEstimator:
         self.img = None
         #TODO: Add this as a launch parameter
         self.img_shape = (480, 640)
-        self._init_subscribers()
+        # Half a second
+        #self.time_between_optimizations = rospy.Duration(secs=0, nsecs=500000000)
+        self.run_optimizer = False
+        self.time_between_optimizations = rospy.Duration(secs=1, nsecs=0)
+        self.time_before_running_optimization = rospy.Duration(secs=1, nsecs=0)
+        # Number of frames added to pose graph before moving to next wp
+        self.n_frames_for_pose_graph = 5
+        self.n_frames_added = 0
         self.pose = PoseStamped()
         self.est_pose = None
         #TODO: Add this as a launch parameter
@@ -44,12 +51,11 @@ class PoseEstimator:
                                wings='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
         #self.stm = SkeletalTurbineModel(c=(360, 0), h=71.74-8, omega=np.pi+np.deg2rad(45), phi=np.pi/2)
         self.optimizer = PoseGraphOptimization(camera_matrix=self.K)
-        self.three_dim_viewport = Display3D()
+        #self.three_dim_viewport = Display3D()
         self.last_optimization_time = rospy.Time.now()
-        # Half a second
-        #self.time_between_optimizations = rospy.Duration(secs=0, nsecs=500000000)
-        self.time_between_optimizations = rospy.Duration(secs=1, nsecs=0)
-        self.time_before_running_optimization = rospy.Duration(secs=1, nsecs=0)
+        
+        self._init_subscribers()
+        self._init_publishers()
         self._init_skeletal_model()
 
     def _init_subscribers(self):
@@ -57,6 +63,13 @@ class PoseEstimator:
         self.img_sub = rospy.Subscriber('/mono_cam/image_raw', Image, self._image_cb)
         self.pose_sub = rospy.Subscriber("/mavros/local_position/pose", PoseStamped, self._pose_cb)
         self.trigger_sub = rospy.Subscriber('~trigger_image_save', Bool, self.__trigger_cb)
+        self.toggle_estimator_sub = rospy.Subscriber('/drone_control/toggle_pose_estimator', Bool, self._toggle_optimizer_cb)
+        
+    def _init_publishers(self):
+        # Setup publishers
+        self.optimized_pose_pub = rospy.Publisher('/pose_estimator/optimized_pose', PoseStamped, queue_size=1)
+        self.next_wp_pub = rospy.Publisher('/pose_estimator/next_wp', Bool, queue_size=1)
+        self.stm_params_pub = rospy.Publisher('/pose_estimator/turbine_params', Float32MultiArray, queue_size=1, latch=True)
     
     def _init_skeletal_model(self):
         while self.img is None:
@@ -67,6 +80,7 @@ class PoseEstimator:
         img = self.img.copy()
         estimated_dist = 100
         print(f'Estimated distance: {estimated_dist}')
+        #TODO: Fails to create renderer at this point?
         cm = ChamferMatcher(img, self.render)
         # Base estimates: UAV located at tower height.
         # Wind turbine located directly in front in the middle of the image with wings oriented
@@ -82,11 +96,12 @@ class PoseEstimator:
         x += -best_estimate[0]
         y += best_estimate[1]
         # We know there is 8m from MSL to bottom/where turbine is located
-        z = best_estimate[2] - 8 
+        z = best_estimate[2] - 8
         roll = np.deg2rad(60 + best_estimate[3])
         yaw = np.pi + np.deg2rad(best_estimate[4])
         print(f'Estimates: ({x},{y},{z},{roll},{yaw})')
         self.stm = SkeletalTurbineModel(c=(x,y), omega=yaw, phi=roll)
+        self._publish_stm_params([x,y,yaw,roll])
         self.init_optimizer(img, cam_pose)
         
     def init_optimizer(self, init_img, init_cam_pose):
@@ -109,21 +124,39 @@ class PoseEstimator:
         self.optimizer.create_observations(list_of_2d_pts, cam.camera_id)
         #self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
         self.last_optimization_time = rospy.Time.now()
-        self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
+        #self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
         self.launch_time = rospy.Time.now()
+        
+    def _publish_stm_params(self, params):
+        # Publish lines to topic
+        x = params[0]
+        y = params[1]
+        yaw = params[2]
+        roll = params[3]
+        arr = Float32MultiArray()
+        arr.data.append(x)
+        arr.data.append(y)
+        arr.data.append(yaw)
+        arr.data.append(roll)
+        self.stm_params_pub.publish(arr)
         
     def __trigger_cb(self, msg):
         self.trigger_save = msg.data
+        
+    def _toggle_optimizer_cb(self, msg):
+        self.run_optimizer = msg.data
 
     def _image_cb(self, img_msg):
         # Image callback
-            self.img = cv2.cvtColor(numpify(img_msg), cv2.COLOR_RGB2BGR)
-            input_img = self.img.copy()
-            drone_img = self.img.copy()
-            if self.trigger_save:
-                rospy.loginfo('Saving image..')
-                cv2.imwrite('tmp_img.png', self.img)
-                self.trigger_save = False
+        clean_img = cv2.cvtColor(numpify(img_msg), cv2.COLOR_RGB2BGR)
+        input_img = clean_img.copy()
+        drone_img = clean_img.copy()
+        if self.trigger_save:
+            rospy.loginfo('Saving image..')
+            cv2.imwrite('tmp_img.png', clean_img)
+            self.trigger_save = False
+        if self.run_optimizer:
+            self.img = clean_img.copy()
             if self.stm:
                 #if self.est_pose is None:
                 R,t = utils.get_camera_pose_from_pose_msg(self.pose)
@@ -150,70 +183,26 @@ class PoseEstimator:
                     self.optimizer.create_observations(new_kps, cam.camera_id)
                     #print(f'Point model: {self.stm.point_model}')
                     self.optimizer.optimize()
+                    self.n_frames_added += 1
                     # Use current point estimate from optimizer?
                     self.stm.update_point_model_from_optimizer(self.optimizer.points[:6])
                     # Use current pose estimate from optimzier
                     self.est_pose = self.optimizer.cameras[-1].pose()[:3,:]
                     self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
                     self.last_optimization_time = rospy.Time.now()
-                    self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
+                    #self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
                 for pt in new_kps:
                     cv2.circle(input_img, (int(pt[0]), int(pt[1])), 3, (0,0,255), 1)
-                    
-                #cv2.imshow('Outputpt1', output[:,:,3])
-                #cv2.imshow('Outputpt2', output[:,:,4])
-                #cv2.imshow('Outputpt3', output[:,:,5])
-                #cv2.imshow('Outputpt4', output[:,:,6])
-                #cv2.imshow('Outputl1', output[:,:,7])
-                #cv2.imshow('Outputl2', output[:,:,8])
-                #cv2.imshow('Outputl3', output[:,:,9])
-                # scaled_search_radius = np.ceil(0.4*search_radius).astype('int')   # As scale factor is 0.4 when downscaling
-                # # Wing tips
-                # for pt in kps[:3]:
-                #     pt = self.inferencer.downscale_pt(pt, input_img.shape)
-                #     test_pt = self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,3], pt, scaled_search_radius, input_img.shape, upscale=True)
-                #     cv2.circle(input_img, test_pt, 3, (255,0,0), 1)
-                # # Rest
-                # for i, pt in enumerate(kps[3:]):
-                #     pt = self.inferencer.downscale_pt(pt, input_img.shape)
-                #     test_pt = self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,4+i+2], pt, scaled_search_radius, input_img.shape, upscale=True)
-                #     cv2.circle(input_img, test_pt, 3, (255,0,0), 1)
-                # # Lines
-                # scaled_search_dist = np.ceil(0.4*search_dist).astype('int')   # As scale factor is 0.4 when downscaling
-                # for i, line in enumerate(lines_divided_2d[:2]):
-                #     # Vector from first pt to last pt (line vector)
-                #     v = line[-1] - line[0]
-                #     # Unit vector
-                #     unit_v = v/np.linalg.norm(v)
-                #     # Vector perpendicular to line
-                #     unit_v_perp = np.array([unit_v[1], -unit_v[0]])
-                #     for pt in line:
-                #         pt1 = (int(pt[0] - search_dist*unit_v_perp[0]), int(pt[1] - search_dist*unit_v_perp[1]))
-                #         pt2 = (int(pt[0] + search_dist*unit_v_perp[0]), int(pt[1] + search_dist*unit_v_perp[1]))
-                #         cv2.line(input_img, pt1, pt2, (255,0,0), 2)
-                #         pt = self.inferencer.downscale_pt(pt, input_img.shape)
-                #         test_pt = self.inferencer.get_line_from_heatmap(output[:,:,7+i], pt, unit_v_perp, scaled_search_dist, input_img.shape, upscale=True)
-                #         cv2.circle(input_img, test_pt, 3, (0,255,0), 1)
-                # for line in lines_divided_2d[2:]:
-                #     # Vector from first pt to last pt (line vector)
-                #     v = line[-1] - line[0]
-                #     # Unit vector
-                #     unit_v = v/np.linalg.norm(v)
-                #     # Vector perpendicular to line
-                #     unit_v_perp = np.array([unit_v[1], -unit_v[0]])
-                #     for pt in line:
-                #         pt1 = (int(pt[0] - search_dist*unit_v_perp[0]), int(pt[1] - search_dist*unit_v_perp[1]))
-                #         pt2 = (int(pt[0] + search_dist*unit_v_perp[0]), int(pt[1] + search_dist*unit_v_perp[1]))
-                #         cv2.line(input_img, pt1, pt2, (255,0,0), 2)
-                #         pt = self.inferencer.downscale_pt(pt, input_img.shape)
-                #         test_pt = self.inferencer.get_line_from_heatmap(output[:,:,9].copy(), pt, unit_v_perp, scaled_search_dist, input_img.shape, upscale=True)
-                #         cv2.circle(input_img, test_pt, 3, (0,0,255), 1)
-                        
-                #cv2.imshow('Result image', self.rst_img)
+        
+        if self.n_frames_added >= self.n_frames_for_pose_graph:
+            self.next_wp_pub.publish(Bool(data=True))
             
-            cv2.imshow('Drone cam', drone_img)
-            cv2.imshow('Pose cam', input_img)
-            cv2.waitKey(1)
+        if not self.run_optimizer:
+            self.n_frames_added = 0
+        
+        cv2.imshow('Drone cam', drone_img)
+        cv2.imshow('Pose cam', input_img)
+        cv2.waitKey(1)
 
     def _pose_cb(self, pose_msg):
         # Pose callback
