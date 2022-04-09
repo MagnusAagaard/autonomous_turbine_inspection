@@ -9,14 +9,14 @@ from renderer import Renderer
 import utils
 
 class ChamferMatcher:
-    def __init__(self, img, renderer):
+    def __init__(self, img, render):
         self.img_color = copy(img)
         self.img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         self.img_edges = cv2.Canny(self.img,50,100, apertureSize=3, L2gradient=True)
         self.detect_and_remove_horizontal_lines(self.img_edges)
         self.dist_img = cv2.distanceTransform(255 - self.img_edges, cv2.DIST_L1, 3).astype(np.uint8)
-        self.renderer = renderer
-        self.template = cv2.cvtColor(self.renderer.offscreen_render([-100, -0.8, 66 + 8, 6, 40]), cv2.COLOR_BGR2GRAY)
+        self.render = render
+        self.template = cv2.cvtColor(self.render.offscreen_render([-100, -0.8, 66 + 8, 6, 40]), cv2.COLOR_BGR2GRAY)
         self.detect_edges()
         self.match(init=True)
         _, top_left, bottom_right = self.match()
@@ -32,7 +32,7 @@ class ChamferMatcher:
         Renders new template based on estimate parameter.
         Overwrites self.template doing this as well.
         '''
-        self.template = cv2.cvtColor(self.renderer.offscreen_render(estimate), cv2.COLOR_BGR2GRAY)
+        self.template = cv2.cvtColor(self.render.offscreen_render(estimate), cv2.COLOR_BGR2GRAY)
         #cv2.imshow('Template', self.template)
         #cv2.waitKey(0)
     
