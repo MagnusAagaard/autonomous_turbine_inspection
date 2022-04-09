@@ -87,14 +87,48 @@ class SkeletalTurbineModel:
         # Lines
         ax.plot(self.line_model[0,:,0], self.line_model[0,:,1], self.line_model[0,:,2], c='b')
         ax.plot(self.line_model[1,:,0], self.line_model[1,:,1], self.line_model[1,:,2], c='g')
-        ax.plot(self.line_model[2,:,0], self.line_model[2,:,1], self.line_model[2,:,2], c='r')
-        ax.plot(self.line_model[3,:,0], self.line_model[3,:,1], self.line_model[3,:,2], c='r')
+        ax.plot(self.line_model[2,:,0], self.line_model[2,:,1], self.line_model[2,:,2], c='g')
+        ax.plot(self.line_model[3,:,0], self.line_model[3,:,1], self.line_model[3,:,2], c='b')
         ax.plot(self.line_model[4,:,0], self.line_model[4,:,1], self.line_model[4,:,2], c='r')
+        uv12 = self.cross_lines(self.line_model[2], self.line_model[3])
+        ax.plot(self.line_model[2,:,0] + uv12[0]*15, self.line_model[2,:,1] + uv12[1]*15, self.line_model[2,:,2]+ uv12[2]*15, c='g', ls='--')
+        ax.plot(self.line_model[3,:,0] + uv12[0]*15, self.line_model[3,:,1] + uv12[1]*15, self.line_model[3,:,2]+ uv12[2]*15, c='b', ls='--')
+        ax.plot(self.line_model[4,:,0] + uv12[0]*15, self.line_model[4,:,1] + uv12[1]*15, self.line_model[4,:,2]+ uv12[2]*15, c='r', ls='--')
+        circular_wps1 = self.get_circular_motion_around_wingtip(self.line_model[2,1,:])
+        circular_wps2 = self.get_circular_motion_around_wingtip(self.line_model[3,1,:], reverse_list=False, inverse=True)
+        circular_wps3 = self.get_circular_motion_around_wingtip(self.line_model[4,1,:])
+        ax.plot(circular_wps1[0], circular_wps1[1], circular_wps1[2], c='g', ls='--')
+        ax.plot(circular_wps2[0], circular_wps2[1], circular_wps2[2], c='b', ls='--')
+        ax.plot(circular_wps3[0], circular_wps3[1], circular_wps3[2], c='r', ls='--')
+        ax.plot(self.line_model[2,:,0] - uv12[0]*15, self.line_model[2,:,1] - uv12[1]*15, self.line_model[2,:,2]- uv12[2]*15, c='g', ls='--')
+        ax.plot(self.line_model[3,:,0] - uv12[0]*15, self.line_model[3,:,1] - uv12[1]*15, self.line_model[3,:,2]- uv12[2]*15, c='b', ls='--')
+        ax.plot(self.line_model[4,:,0] - uv12[0]*15, self.line_model[4,:,1] - uv12[1]*15, self.line_model[4,:,2]- uv12[2]*15, c='r', ls='--')
         #for line in self.line_model:
         #    ax.plot(line[:,0], line[:,1], line[:,2])
         set_axes_equal(ax)
         #fig.savefig('/home/magnus/instantiated_model.pdf', bbox_inches='tight')
         plt.show()
+        
+    def cross_lines(self, line1, line2):
+        v1 = line1[1] - line1[0]
+        v2 = line2[1] - line2[0]
+        uv1 = v1 / np.linalg.norm(v1)
+        uv2 = v2 / np.linalg.norm(v2)
+        uv12 = np.cross(uv1, uv2)
+        uv12 /= np.linalg.norm(uv12)
+        return uv12
+    
+    def get_circular_motion_around_wingtip(self, center, radius=15, step_size=10, reverse_list=True, inverse=False):
+        if inverse:
+            xs = [center[0] + radius*np.sin(self.omega - np.deg2rad(x-90)) for x in range(0, 91, step_size)]
+            ys = [center[1] - radius*np.cos(self.omega - np.deg2rad(y-90)) for y in range(0, 91, step_size)]
+        else:
+            xs = [center[0] + radius*np.sin(self.omega - np.deg2rad(x+90)) for x in range(0, 91, step_size)]
+            ys = [center[1] - radius*np.cos(self.omega - np.deg2rad(y+90)) for y in range(0, 91, step_size)]
+        zs = [center[2] for z in range(0, 91, step_size)]
+        if reverse_list:
+            return [xs[::-1], ys[::-1], zs[::-1]]
+        return [xs, ys, zs]
         
     def get_line_steps(self):
         '''
