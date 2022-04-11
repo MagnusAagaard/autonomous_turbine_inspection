@@ -163,7 +163,7 @@ class SkeletalTurbineModel:
         return lines_divided
             
 
-    def project_model_to_image(self, img=None, K=None, cam_pose=None, pose_in_world_frame=False, show_img=False):
+    def project_model_to_image(self, img=None, K=None, cam_pose=None, search_radius=40, pose_in_world_frame=False, show_img=False):
         # Project the model into image coordinate system (2D)
         if img is None:
             img_h = 480
@@ -213,7 +213,7 @@ class SkeletalTurbineModel:
         # Show results
         for u, v in img_pts_init:
             cv2.circle(img, (int(u), int(v)), 5, (255,0,0), 1)
-            cv2.circle(img, (int(u), int(v)), 40, (255,0,0), 1)
+            cv2.circle(img, (int(u), int(v)), int(search_radius), (255,0,0), 1)
         for i in range(2):
             cv2.line(img, (int(img_pts_init[i,0]), int(img_pts_init[i,1])), (int(img_pts_init[i+1,0]), int(img_pts_init[i+1,1])), (255,0,0), 1)
         cv2.line(img, (int(img_pts_init[2,0]), int(img_pts_init[2,1])), (int(img_pts_init[3,0]), int(img_pts_init[3,1])), (255,0,0), 1)
@@ -236,7 +236,7 @@ class SkeletalTurbineModel:
         # Show results
         for u, v in img_pts:
             cv2.circle(img, (int(u), int(v)), 5, (0,255,0), 1)
-            cv2.circle(img, (int(u), int(v)), 40, (0,255,0), 1)
+            cv2.circle(img, (int(u), int(v)), int(search_radius), (0,255,0), 1)
         for i in range(2):
             cv2.line(img, (int(img_pts[i,0]), int(img_pts[i,1])), (int(img_pts[i+1,0]), int(img_pts[i+1,1])), (0,255,0), 1)
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[3,0]), int(img_pts[3,1])), (0,255,0), 1)
