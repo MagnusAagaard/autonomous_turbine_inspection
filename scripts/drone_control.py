@@ -199,11 +199,9 @@ class DroneControl:
             xs = [center[0] + radius*np.sin(self.stm.omega - np.deg2rad(x+90)) for x in range(0, 181, step_size)]
             ys = [center[1] - radius*np.cos(self.stm.omega - np.deg2rad(y+90)) for y in range(0, 181, step_size)]
         zs = [center[2] for z in range(0, 181, step_size)]
-        qx = self.current_position.pose.orientation.x
-        qy = self.current_position.pose.orientation.y
-        qz = self.current_position.pose.orientation.z
-        qw = self.current_position.pose.orientation.w
-        pts = [[xs[i], ys[i], zs[i], qx, qy, qz, qw] for i in range(len(xs))]
+        angles = [atan2(center[1] - ys[i], center[0] - xs[i]) for i in range(len(xs))]
+        qs = [utils.quaternion_from_euler(0,0,angle) for angle in angles]
+        pts = [[xs[i], ys[i], zs[i], qs[i][0], qs[i][1], qs[i][2], qs[i][3]] for i in range(len(xs))]
         return pts
     
     def get_wps_from_model_lines(self, model_lines, dist=15):
@@ -218,28 +216,22 @@ class DroneControl:
         w1_line = np.asarray(wing1_pts[-1] - wing1_pts[0])
         w2_line = np.asarray(wing2_pts[-1] - wing2_pts[0])
         p_uv = self.cross_lines(w1_line, w2_line)
-        #q = utils.quaternion_from_euler(0,0,pi/8)
-        #[10, 0, self.altitude, q[0],q[1],q[2],q[3]]
         wps = []
-        qx = self.current_position.pose.orientation.x
-        qy = self.current_position.pose.orientation.y
-        qz = self.current_position.pose.orientation.z
-        qw = self.current_position.pose.orientation.w
-        #TODO: Decide which way to go around a wing (depending on orientation of it..) 
-        # DONE: Always same direction as parameter estimation will be [0-60]
-        #TODO: Add orientation towards wing
+        # Omega paramter is estimated with wind turbine orientation 0 in negative x direction
+        # ie. 180 degrees offset, so pi must be subtracted to get correct orientation
+        q_front = utils.quaternion_from_euler(0,0,self.stm.omega-np.pi)
+        # pi added to get 180 degree offset
+        q_back = utils.quaternion_from_euler(0,0,self.stm.omega)
+        # Always same direction around turbine tips as parameter estimation will be [0-60]
         for i, wing in enumerate(model_lines):
             if i % 2 == 0:
-                wps.append([[w[0] + p_uv[0]*dist, w[1] + p_uv[1]*dist, w[2] + p_uv[2]*dist, qx, qy, qz, qw] for w in wing])
-                #[wps.append([w[0] + p_uv[0]*dist, w[1] + p_uv[1]*dist, w[2] + p_uv[2]*dist, qx, qy, qz, qw]) for w in wing]
+                wps.append([[w[0] + p_uv[0]*dist, w[1] + p_uv[1]*dist, w[2] + p_uv[2]*dist, q_front[0], q_front[1], q_front[2], q_front[3]] for w in wing])
                 wps.append(self.get_circular_motion_around_wingtip(wing[-1], inverse=True))
-                #[wps.append(wp) for wp in self.get_circular_motion_around_wingtip(wing[-1], inverse=inv)]
-                wps.append([[w[0] - p_uv[0]*dist, w[1] - p_uv[1]*dist, w[2] - p_uv[2]*dist, qx, qy, qz, qw] for w in wing[::-1]])
-                #[wps.append([w[0] - p_uv[0]*dist, w[1] - p_uv[1]*dist, w[2] - p_uv[2]*dist, qx, qy, qz, qw]) for w in wing[::-1]]
+                wps.append([[w[0] - p_uv[0]*dist, w[1] - p_uv[1]*dist, w[2] - p_uv[2]*dist, q_back[0], q_back[1], q_back[2], q_back[3]] for w in wing[::-1]])
             else:
-                wps.append([[w[0] - p_uv[0]*dist, w[1] - p_uv[1]*dist, w[2] - p_uv[2]*dist, qx, qy, qz, qw] for w in wing])
+                wps.append([[w[0] - p_uv[0]*dist, w[1] - p_uv[1]*dist, w[2] - p_uv[2]*dist, q_back[0], q_back[1], q_back[2], q_back[3]] for w in wing])
                 wps.append(self.get_circular_motion_around_wingtip(wing[-1], inverse=False))
-                wps.append([[w[0] + p_uv[0]*dist, w[1] + p_uv[1]*dist, w[2] + p_uv[2]*dist, qx, qy, qz, qw] for w in wing[::-1]])
+                wps.append([[w[0] + p_uv[0]*dist, w[1] + p_uv[1]*dist, w[2] + p_uv[2]*dist, q_front[0], q_front[1], q_front[2], q_front[3]] for w in wing[::-1]])
         return wps
     
     def run_inspection(self, init_pos):
@@ -277,9 +269,7 @@ class DroneControl:
                 if self.go_to_next_wp:
                     # Pause pose estimator before moving
                     self.pause_pose_estimator()
-                    #TODO:
-                    # Calculate offset in pose
-                    # Correct wp with pose offset
+                    #TODO: Calculate offset in pose and correct wp with pose offset
                     # Fly to waypoint and wait 2 sec.
                     current_wp = self.create_pose_from_waypoint(self.wps[line_it][wp_it])
                     if line_it % 3 == 1:
