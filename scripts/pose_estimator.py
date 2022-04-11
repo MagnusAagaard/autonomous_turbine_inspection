@@ -160,6 +160,7 @@ class PoseEstimator:
             if self.stm:
                 #if self.est_pose is None:
                 R,t = utils.get_camera_pose_from_pose_msg(self.pose)
+                #TODO: Cam_pose seems to get computed wrong? Check 3D visualization in pose estimator..
                 cam_pose = np.column_stack((R,t))
                 #print(cam_pose)
                 #else:
@@ -167,13 +168,20 @@ class PoseEstimator:
                 #    t = self.est_pose[:,3]
                 #    cam_pose = np.column_stack((R,t))
                 #cam_pose = self.get_extrensic_parameters()
-                kps, lines_divided_2d = self.stm.project_model_to_image(img=drone_img, K=self.K, cam_pose=cam_pose, pose_in_world_frame=False)
+                
+                # pixels = known_width*focal_length/D'
+                est_D = 100
+                if cam_pose[2,3] < -50:
+                    est_D = 15
+                search_radius = 4*554.92/est_D
+                #TODO: Check actual wing height and use this as search dist
+                search_dist = 3*554.92/est_D
+                kps, lines_divided_2d = self.stm.project_model_to_image(img=drone_img, K=self.K, cam_pose=cam_pose, search_radius=search_radius, pose_in_world_frame=False)
                 output = self.inferencer.forward(input_img, kps)
                 #TODO: Make a way to process it all and save a number of point correspondences
                 # checking whether they are present in the current image or not
                 # Also: Add function that removes current observations with high reprojection error to avoid drifting?
-                search_radius = 40
-                search_dist = 15
+                
                 new_kps = self.process_inference_output(kps, lines_divided_2d, output, search_radius, search_dist, input_img, use_line_fit=False)
                 if (rospy.Time.now() - self.launch_time) > self.time_before_running_optimization and (rospy.Time.now() - self.last_optimization_time) > self.time_between_optimizations:
                     #cam = Camera(R=R, t=t, camera_id=self.optimizer.increment_id(), fixed=False)
@@ -214,8 +222,8 @@ class PoseEstimator:
         output from the neural network and processes it.
         Returns 2D kp locations in image.
         '''
-        scaled_search_radius = np.ceil(0.54*search_radius).astype('int')   # As scale factor is 0.4 when downscaling
-        scaled_search_dist = np.ceil(0.54*search_dist).astype('int')   # As scale factor is 0.4 when downscaling
+        scaled_search_radius = np.ceil(0.54*search_radius).astype('int')   # As scale factor is 0.54 when downscaling
+        scaled_search_dist = np.ceil(0.54*search_dist).astype('int')   # As scale factor is 0.54 when downscaling
         # Wing tips
         new_kps = []
         for pt in kps[:3]:
