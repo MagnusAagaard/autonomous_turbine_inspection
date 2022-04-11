@@ -204,8 +204,6 @@ class DroneControl:
         qz = self.current_position.pose.orientation.z
         qw = self.current_position.pose.orientation.w
         pts = [[xs[i], ys[i], zs[i], qx, qy, qz, qw] for i in range(len(xs))]
-        if not inverse:
-            return pts[::-1]
         return pts
     
     def get_wps_from_model_lines(self, model_lines, dist=15):
@@ -220,21 +218,28 @@ class DroneControl:
         w1_line = np.asarray(wing1_pts[-1] - wing1_pts[0])
         w2_line = np.asarray(wing2_pts[-1] - wing2_pts[0])
         p_uv = self.cross_lines(w1_line, w2_line)
-        q = utils.quaternion_from_euler(0,0,pi/8)
-        [10, 0, self.altitude, q[0],q[1],q[2],q[3]]
+        #q = utils.quaternion_from_euler(0,0,pi/8)
+        #[10, 0, self.altitude, q[0],q[1],q[2],q[3]]
         wps = []
         qx = self.current_position.pose.orientation.x
         qy = self.current_position.pose.orientation.y
         qz = self.current_position.pose.orientation.z
         qw = self.current_position.pose.orientation.w
-        #TODO: Decide which way to go around a wing (depending on orientation of it..)
+        #TODO: Decide which way to go around a wing (depending on orientation of it..) 
+        # DONE: Always same direction as parameter estimation will be [0-60]
+        #TODO: Add orientation towards wing
         for i, wing in enumerate(model_lines):
-            [wps.append([w[0] + p_uv[0]*dist, w[1] + p_uv[1]*dist, w[2] + p_uv[2]*dist, qx, qy, qz, qw]) for w in wing]
-            inv = True
-            if i%2 == 0:
-                inv = False
-            [wps.append(wp) for wp in self.get_circular_motion_around_wingtip(wing[-1], inverse=inv)]
-            [wps.append([w[0] - p_uv[0]*dist, w[1] - p_uv[1]*dist, w[2] - p_uv[2]*dist, qx, qy, qz, qw]) for w in wing[::-1]]
+            if i % 2 == 0:
+                wps.append([[w[0] + p_uv[0]*dist, w[1] + p_uv[1]*dist, w[2] + p_uv[2]*dist, qx, qy, qz, qw] for w in wing])
+                #[wps.append([w[0] + p_uv[0]*dist, w[1] + p_uv[1]*dist, w[2] + p_uv[2]*dist, qx, qy, qz, qw]) for w in wing]
+                wps.append(self.get_circular_motion_around_wingtip(wing[-1], inverse=True))
+                #[wps.append(wp) for wp in self.get_circular_motion_around_wingtip(wing[-1], inverse=inv)]
+                wps.append([[w[0] - p_uv[0]*dist, w[1] - p_uv[1]*dist, w[2] - p_uv[2]*dist, qx, qy, qz, qw] for w in wing[::-1]])
+                #[wps.append([w[0] - p_uv[0]*dist, w[1] - p_uv[1]*dist, w[2] - p_uv[2]*dist, qx, qy, qz, qw]) for w in wing[::-1]]
+            else:
+                wps.append([[w[0] - p_uv[0]*dist, w[1] - p_uv[1]*dist, w[2] - p_uv[2]*dist, qx, qy, qz, qw] for w in wing])
+                wps.append(self.get_circular_motion_around_wingtip(wing[-1], inverse=False))
+                wps.append([[w[0] + p_uv[0]*dist, w[1] + p_uv[1]*dist, w[2] + p_uv[2]*dist, qx, qy, qz, qw] for w in wing[::-1]])
         return wps
     
     def run_inspection(self, init_pos):
@@ -243,6 +248,9 @@ class DroneControl:
         '''
         STATE = 'INIT'
         current_wp = self.create_pose_from_waypoint(init_pos)
+        # Line iterator
+        line_it = 0
+        # Waypoint iterator (each pt in line)
         wp_it = 0
         while(STATE != 'TERMINATE'):
             if STATE == 'INIT':
@@ -273,15 +281,20 @@ class DroneControl:
                     # Calculate offset in pose
                     # Correct wp with pose offset
                     # Fly to waypoint and wait 2 sec.
-                    #TODO: Circular motion around wing tip should not wait and should not use pose estimation..
-                    #TODO: Maybe do list of lists of wps again and use a second iterator through them and add another "transition" state
-                    current_wp = self.create_pose_from_waypoint(self.wps[wp_it])
-                    self.fly_to_wp_and_wait(current_wp)
+                    current_wp = self.create_pose_from_waypoint(self.wps[line_it][wp_it])
+                    if line_it % 3 == 1:
+                        self.fly_to_wp(current_wp)
+                    else:
+                        self.fly_to_wp_and_wait(current_wp)
                     wp_it += 1
-                    if len(self.wps) - wp_it <= 1:
+                    if len(self.wps[line_it]) - wp_it < 1:
+                        line_it += 1
+                        wp_it = 0
+                    if len(self.wps) - line_it < 1:
                         STATE = 'TERMINATE'
-                    self.go_to_next_wp = False
-                    self.start_pose_estimator()
+                    if not line_it % 3 == 1:
+                        self.go_to_next_wp = False
+                        self.start_pose_estimator()
                 else:
                     self.publish_wp_and_sleep(current_wp)
         self.pause_pose_estimator()
@@ -313,6 +326,13 @@ class DroneControl:
         target_position.header = Header(stamp=rospy.Time.now())
         self.target_pos_pub.publish(target_position)
         self.rate.sleep()
+        
+    def fly_to_wp(self, wp):
+        rospy.loginfo('New waypoint recieved.')
+        target_position = wp
+        target_position.header = Header(stamp=rospy.Time.now())
+        while self.distance_to_target(target_position) > 0.50:
+            self.publish_wp_and_sleep(target_position)
         
 
 def main():
