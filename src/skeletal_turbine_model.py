@@ -94,12 +94,12 @@ class SkeletalTurbineModel:
         ax.plot(self.line_model[2,:,0] + uv12[0]*15, self.line_model[2,:,1] + uv12[1]*15, self.line_model[2,:,2]+ uv12[2]*15, c='g', ls='--')
         ax.plot(self.line_model[3,:,0] + uv12[0]*15, self.line_model[3,:,1] + uv12[1]*15, self.line_model[3,:,2]+ uv12[2]*15, c='b', ls='--')
         ax.plot(self.line_model[4,:,0] + uv12[0]*15, self.line_model[4,:,1] + uv12[1]*15, self.line_model[4,:,2]+ uv12[2]*15, c='r', ls='--')
-        circular_wps1 = self.get_circular_motion_around_wingtip(self.line_model[2,1,:])
-        circular_wps2 = self.get_circular_motion_around_wingtip(self.line_model[3,1,:], reverse_list=False, inverse=True)
-        circular_wps3 = self.get_circular_motion_around_wingtip(self.line_model[4,1,:])
-        ax.plot(circular_wps1[0], circular_wps1[1], circular_wps1[2], c='g', ls='--')
-        ax.plot(circular_wps2[0], circular_wps2[1], circular_wps2[2], c='b', ls='--')
-        ax.plot(circular_wps3[0], circular_wps3[1], circular_wps3[2], c='r', ls='--')
+        circular_wps1 = self.get_circular_motion_around_wingtip(self.line_model[2,1,:], inverse=True)
+        circular_wps2 = self.get_circular_motion_around_wingtip(self.line_model[3,1,:], inverse=False)
+        circular_wps3 = self.get_circular_motion_around_wingtip(self.line_model[4,1,:], inverse=True)
+        ax.plot(circular_wps1[0][:9], circular_wps1[1][:9], circular_wps1[2][:9], c='g', ls='--')
+        ax.plot(circular_wps2[0][:9], circular_wps2[1][:9], circular_wps2[2][:9], c='b', ls='--')
+        ax.plot(circular_wps3[0][:9], circular_wps3[1][:9], circular_wps3[2][:9], c='r', ls='--')
         ax.plot(self.line_model[2,:,0] - uv12[0]*15, self.line_model[2,:,1] - uv12[1]*15, self.line_model[2,:,2]- uv12[2]*15, c='g', ls='--')
         ax.plot(self.line_model[3,:,0] - uv12[0]*15, self.line_model[3,:,1] - uv12[1]*15, self.line_model[3,:,2]- uv12[2]*15, c='b', ls='--')
         ax.plot(self.line_model[4,:,0] - uv12[0]*15, self.line_model[4,:,1] - uv12[1]*15, self.line_model[4,:,2]- uv12[2]*15, c='r', ls='--')
@@ -118,30 +118,28 @@ class SkeletalTurbineModel:
         uv12 /= np.linalg.norm(uv12)
         return uv12
     
-    def get_circular_motion_around_wingtip(self, center, radius=15, step_size=10, reverse_list=True, inverse=False):
+    def get_circular_motion_around_wingtip(self, center, radius=15, step_size=10, inverse=False):
         if inverse:
-            xs = [center[0] + radius*np.sin(self.omega - np.deg2rad(x-90)) for x in range(0, 91, step_size)]
-            ys = [center[1] - radius*np.cos(self.omega - np.deg2rad(y-90)) for y in range(0, 91, step_size)]
+            xs = [center[0] + radius*np.sin(self.omega - np.deg2rad(x-90)) for x in range(0, 181, step_size)]
+            ys = [center[1] - radius*np.cos(self.omega - np.deg2rad(y-90)) for y in range(0, 181, step_size)]
         else:
-            xs = [center[0] + radius*np.sin(self.omega - np.deg2rad(x+90)) for x in range(0, 91, step_size)]
-            ys = [center[1] - radius*np.cos(self.omega - np.deg2rad(y+90)) for y in range(0, 91, step_size)]
-        zs = [center[2] for z in range(0, 91, step_size)]
-        if reverse_list:
-            return [xs[::-1], ys[::-1], zs[::-1]]
+            xs = [center[0] + radius*np.sin(self.omega - np.deg2rad(x+90)) for x in range(0, 181, step_size)]
+            ys = [center[1] - radius*np.cos(self.omega - np.deg2rad(y+90)) for y in range(0, 181, step_size)]
+        zs = [center[2] for z in range(0, 181, step_size)]
         return [xs, ys, zs]
         
     def get_line_steps(self):
         '''
         Lines are subdivided into fixed amount of points based on the initial parameters.
         '''
-        step_sizes = [1, 1, 1]
+        step_sizes = [1, 1, 5]
         tower_step = int(self.h / step_sizes[0])
         top_step = int(self.r / step_sizes[1])
         blade_step = int(self.b / step_sizes[2])
         return [tower_step, top_step, blade_step, blade_step, blade_step]
         
         
-    def subdivide_lines(self):
+    def subdivide_lines(self, step_sizes=None):
         '''
         Subdivides the line models into points along those lines. These points
         can be searched in a perpendicular direction to find correspondence
@@ -311,7 +309,7 @@ def set_axes_equal(ax):
 def main():
     # Main
     #stm = SkeletalTurbineModel()
-    stm = SkeletalTurbineModel(c=(0,0), h=71.74-8, omega=5.3/4*np.pi, r=5.16, phi=0, b=35.1)
+    stm = SkeletalTurbineModel(c=(0,0), h=71.74-8, omega=5/4*np.pi, r=5.16, phi=np.deg2rad(60+30), b=35.1)
     #stm = SkeletalTurbineModel(c=(0,0), h=1, omega=0, r=1, phi=0, b=1)
     #stm.project_model_to_image(show_img=True)
     stm.plot_model()
