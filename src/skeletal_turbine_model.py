@@ -207,7 +207,7 @@ class SkeletalTurbineModel:
             # Perspective transform
             point = P @ point
             # Re-scale homogenous point
-            if point[2] > 0:
+            if point[2] != 0:
                 point /= point[2]
             img_pts_init[i,:] = point[:2]
         # Show results
@@ -248,7 +248,10 @@ class SkeletalTurbineModel:
             cv2.waitKey(0)
         rst_pts = []
         #TODO: Do I need to round these? Lines divided 2D is floats
-        for _pt in img_pts:
+        # CHANGED FROM img_pts to img_pts_init
+        # AND ADDED THIS P AGAIN
+        P = K @ cam_pose # NOW USES OLD MODEL AND NOT ESTIMATED FOR LINES AND PTS
+        for _pt in img_pts_init:
             rst_pts.append([int(_pt[0]), int(_pt[1])])
         lines_divided_3d = self.subdivide_lines()
         lines_divided_2d = []
