@@ -1,4 +1,75 @@
+import torch
 from torch import nn
+
+class conv2DBatchNormRelu(nn.Module):
+    def __init__(self, in_channels, n_filters, k_size, stride, padding, bias=True, dilation=1):
+        super(conv2DBatchNormRelu, self).__init__()
+        conv_mod = nn.Conv2d(int(in_channels), 
+                             int(n_filters), 
+                             kernel_size=k_size, 
+                             padding=padding, 
+                             stride=stride, 
+                             bias=bias, 
+                             dilation=dilation)
+        self.cbr_unit = nn.Sequential(conv_mod, nn.BatchNorm2d(int(n_filters)), nn.ReLU(inplace=True))
+    
+    def forward(self, inputs):
+        outputs = self.cbr_unit(inputs)
+        return outputs
+
+class ConvDown1(nn.Module):
+    def __init__(self, in_size, out_size):
+        super(ConvDown1, self).__init__()
+        self.conv1 = conv2DBatchNormRelu(in_size, out_size, 3, 1, 1)
+        self.maxpool = nn.MaxPool2d(2, 2, return_indices=True)
+        
+    def forward(self, x):
+        x = self.conv1(x)
+        unpooled_shape = x.size()
+        x, indices = self.maxpool(x)
+        return x, indices, unpooled_shape
+    
+class ConvUp1(nn.Module):
+    def __init__(self, in_size, out_size):
+        super(ConvUp1, self).__init__()
+        self.unpool = nn.MaxUnpool2d(2, 2)
+        self.conv1 = conv2DBatchNormRelu(in_size, out_size, 3, 1, 1)
+        
+    def forward(self, x, indices, output_shape):
+        x = self.unpool(input=x, indices=indices, output_size=output_shape)
+        x = self.conv1(x)
+        return x
+
+class ConvEncoderDecoderV3(nn.Module):
+    def __init__(self, inp_dim):
+        super(ConvEncoderDecoderV3, self).__init__()
+        self.inp_dim = inp_dim
+        # Common functions
+        self.sigmoid = nn.Sigmoid()
+        # Encoder
+        self.down1 = ConvDown1(self.inp_dim, 64)
+        self.down2 = ConvDown1(64, 128)
+        self.down3 = ConvDown1(128, 256)
+        self.down4 = ConvDown1(256, 512)
+        # Decoder
+        self.up4 = ConvUp1(512, 256)
+        self.up3 = ConvUp1(256, 128)
+        self.up2 = ConvUp1(128, 64)
+        self.up1 = ConvUp1(64, self.inp_dim)
+        
+    def forward(self, inputs):
+        down1, indices_1, unpool_shape1 = self.down1(inputs)
+        down2, indices_2, unpool_shape2 = self.down2(down1)
+        down3, indices_3, unpool_shape3 = self.down3(down2)
+        down4, indices_4, unpool_shape4 = self.down4(down3)
+
+        up4 = self.up4(down4, indices_4, unpool_shape4)
+        up3 = self.up3(up4, indices_3, unpool_shape3)
+        up2 = self.up2(up3, indices_2, unpool_shape2)
+        up1 = self.up1(up2, indices_1, unpool_shape1)
+        out = self.sigmoid(up1)
+
+        return out
 
 class ConvEncoderDecoderV2(nn.Module):
     def __init__(self, inp_dim):
@@ -193,7 +264,11 @@ class ConvEncoderDecoder(nn.Module):
         return x
 
 def main():
-    model = ConvEncoderDecoder(10)
+    model = ConvEncoderDecoderV3(10)
+    input = torch.randn(1,10,256,256, requires_grad=True)
+    print(input.shape)
+    out = model(input)
+    print(out.shape)
     #if cuda.is_available():
     #    device = 'cuda:0'
     #else:
