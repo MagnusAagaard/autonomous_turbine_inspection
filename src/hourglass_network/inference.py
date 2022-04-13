@@ -11,11 +11,16 @@ from skeletal_turbine_model import SkeletalTurbineModel
 import timeit
 
 class Inference:
-    def __init__(self, model_path):
+    def __init__(self, model_path, version='v1'):
         self.pt_threshold = 0.1 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f'Device available for inference: {self.device}')
-        self.model = ConvEncoderDecoder(10)
+        if version == 'v1':
+            self.model = ConvEncoderDecoder(10)
+        elif version == 'v2':
+            self.model = ConvEncoderDecoderV2(10)
+        else:
+            print('Inferece model version invalid!')
         self.__load_model(model_path)
         
     def __load_model(self, model_path):
@@ -239,7 +244,7 @@ class Inference:
 
 def main():
     # Get input image
-    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run5/model_best.pt')
+    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run5/model_best_epoch744.pt', version='v2')
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run3/model_best_epoch704.pt')
     annotation_idx = 0
     #inferencer.test_timing(annotation_idx)
