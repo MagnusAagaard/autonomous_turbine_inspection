@@ -185,10 +185,13 @@ class DroneControl:
         return wps
     
     def create_square_waypoints(self):
-        c1 = [10,0,0]
-        c2 = [10, -10, np.pi/2]
-        c3 = [20, -10, np.pi]
-        c4 = [20, 0, 3*np.pi/2]
+        c1 = [0,0,0]
+        #c2 = [10,-10,0]
+        #c3 = [20,-10,0]
+        #c4 = [20,0,0]
+        c2 = [0, -10, np.pi/2]
+        c3 = [10, -10, np.pi]
+        c4 = [10, 0, 3*np.pi/2]
         corners = [c1,c2,c3,c4]
         wps = []
         wps_list = []
@@ -275,8 +278,8 @@ class DroneControl:
                     rospy.loginfo('Init pose obtained')
                     self.model_lines = self.stm.subdivide_lines()
                     # Get perpendicular point at X distance
-                    #self.wps = self.get_wps_from_model_lines(self.model_lines[2:])
-                    self.wps = self.create_square_waypoints()
+                    self.wps = self.get_wps_from_model_lines(self.model_lines[2:])
+                    #self.wps = self.create_square_waypoints()
                     STATE = 'WAIT_FOR_POSE_ESTIMATOR'
                 else:
                     self.publish_wp_and_sleep(current_wp)
@@ -287,19 +290,19 @@ class DroneControl:
                     #TODO: Calculate offset in pose and correct wp with pose offset
                     # Fly to waypoint and wait 2 sec.
                     current_wp = self.create_pose_from_waypoint(self.wps[line_it][wp_it])
-                    if line_it % 3 == 1:
+                    if line_it % 3 == 1 and len(self.wps[line_it]) - line_it > 1:
                         self.fly_to_wp(current_wp)
                     else:
                         self.fly_to_wp_and_wait(current_wp)
                     wp_it += 1
+                    if not line_it % 3 == 1:
+                        self.go_to_next_wp = False
+                        self.start_pose_estimator()
                     if len(self.wps[line_it]) - wp_it < 1:
                         line_it += 1
                         wp_it = 0
                     if len(self.wps) - line_it < 1:
                         STATE = 'TERMINATE'
-                    if not line_it % 3 == 1:
-                        self.go_to_next_wp = False
-                        self.start_pose_estimator()
                 else:
                     self.publish_wp_and_sleep(current_wp)
         self.pause_pose_estimator()
@@ -321,9 +324,9 @@ class DroneControl:
         while self.distance_to_target(target_position) > 0.50:
             self.publish_wp_and_sleep(target_position)
         # Waypoint within 0.5m, hold for 2 sec.
-        rospy.loginfo('Waypoint within 0.5m, hold for 2 sec..')
+        rospy.loginfo('Waypoint within 0.5m, hold for 5 sec..')
         now = rospy.Time.now()
-        while (rospy.Time.now() - now) < rospy.Duration(secs=2):
+        while (rospy.Time.now() - now) < rospy.Duration(secs=5):
             self.publish_wp_and_sleep(target_position)
             
     def publish_wp_and_sleep(self, wp):
