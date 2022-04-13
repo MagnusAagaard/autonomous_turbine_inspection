@@ -184,6 +184,20 @@ class DroneControl:
         wps = [[xs[i], ys[i], self.altitude, qs[i][0], qs[i][1], qs[i][2], qs[i][3]] for i in range(360)]
         return wps
     
+    def create_square_waypoints(self):
+        c1 = [10,0,0]
+        c2 = [10, -10, np.pi/2]
+        c3 = [20, -10, np.pi]
+        c4 = [20, 0, 3*np.pi/2]
+        corners = [c1,c2,c3,c4]
+        wps = []
+        wps_list = []
+        for c in corners*10:
+            qs = utils.quaternion_from_euler(0,0,c[2])
+            wps.append([c[0], c[1], self.altitude, qs[0], qs[1], qs[2], qs[3]])
+        wps_list.append(wps)
+        return wps_list
+    
     def cross_lines(self, v1, v2):
         uv1 = v1 / np.linalg.norm(v1)
         uv2 = v2 / np.linalg.norm(v2)
@@ -261,7 +275,8 @@ class DroneControl:
                     rospy.loginfo('Init pose obtained')
                     self.model_lines = self.stm.subdivide_lines()
                     # Get perpendicular point at X distance
-                    self.wps = self.get_wps_from_model_lines(self.model_lines[2:])
+                    #self.wps = self.get_wps_from_model_lines(self.model_lines[2:])
+                    self.wps = self.create_square_waypoints()
                     STATE = 'WAIT_FOR_POSE_ESTIMATOR'
                 else:
                     self.publish_wp_and_sleep(current_wp)
