@@ -13,16 +13,17 @@ from torchvision.transforms import Compose, ToTensor, RandomCrop, Resize, Center
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 
-from model import ConvEncoderDecoder, ConvEncoderDecoderV2
+from model import ConvEncoderDecoder, ConvEncoderDecoderV2, ConvEncoderDecoderV3
 from dataloader import WindturbineDataset
 
 def parse_command_line():
         parser = argparse.ArgumentParser()
-        parser.add_argument('-e', '--epochs', type=int, default=2000, help='max number of epochs')
+        parser.add_argument('-e', '--epochs', type=int, default=3000, help='max number of epochs')
         parser.add_argument('-r', '--resume', type=bool, default=False, help='whether to resume training from a checkpoint (using model_best.pt)')
         parser.add_argument('-b', '--base_dir', type=str, default='./src/hourglass_network', help='base directory of model code')
         parser.add_argument('-v', '--validate', type=int, default=2, help='number of epochs between model validation. Also saves best model when validating.')
         parser.add_argument('-i', '--interval', type=int, default=50, help='every [interval] the current model is saved')
+        parser.add_argument('-m', '--model', type=str, default='v3', help='model version (v1, v2 or v3)')
         args = parser.parse_args()
         return args
 
@@ -33,11 +34,17 @@ class Trainer:
         self.resume = args.resume
         self.base_dir = args.base_dir
         self.save_interval = args.interval
+        self.model_version = args.model
         # TensorBoard writer
-        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_5')
+        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_6')
         # Use CUDA if available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model = ConvEncoderDecoderV2(10)
+        if self.model_version == 'v1':
+            self.model = ConvEncoderDecoder(10)
+        elif self.model_version == 'v2':
+            self.model = ConvEncoderDecoderV2(10)
+        elif self.model_version == 'v3':
+            self.model = ConvEncoderDecoderV3(10)
         # Move model to GPU if available
         self.model.to(self.device)
         self.optimizer = Adam(self.model.parameters(), lr=1e-3)
