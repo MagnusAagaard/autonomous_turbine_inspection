@@ -207,25 +207,38 @@ class PoseGraphOptimization:
         Pose 2 in world frame
         Pose 2 wrt. pose 1 = T_ij =  T_1^-1*T2
         '''
-        # Rex_inv needs to be removed prior to calculating relative pose and then multiplied on translation vector afterwards
-        # as rotation is already calculating offset between the two rotation poses (q_a^-1*q_b)
-        # Rex @ R needs not to be removed as they will cancel out anyway, but good measure to do both
-        Rex_inv = np.linalg.inv(utils.get_rotation_matrix_from_world_to_camera_frame())
-        pose1 = g2o.SE3Quat(Rex_inv @ R1, Rex_inv @ t1)
-        pose2 = g2o.SE3Quat(Rex_inv @ R2, Rex_inv @ t2)
+        # Rex needs not to be removed prior to calculating relative pose, since they are in the same frame and it will cancel out
+        # Rex @ t needs to be computed to get translation in camera frame
+        # The R matrix is calculated by swapping quaternion values corresponding to transform from world to camera frame
+        #Rex_inv = np.linalg.inv(utils.get_rotation_matrix_from_world_to_camera_frame())
+        #pose1 = g2o.SE3Quat(Rex_inv @ R1, Rex_inv @ t1)
+        #pose2 = g2o.SE3Quat(Rex_inv @ R2, Rex_inv @ t2)
+        #pose1 = g2o.SE3Quat(R1, Rex_inv @ t1)
+        #pose2 = g2o.SE3Quat(R2, Rex_inv @ t2)
+        pose1 = g2o.SE3Quat(R1, t1)
+        pose2 = g2o.SE3Quat(R2, t2)
         # Relative transformation between pose 1 and 2 in world frame
         Tij = pose1.inverse()*pose2
-        t_wc = np.zeros((3,1))
-        T_Rex = g2o.SE3Quat(utils.get_rotation_matrix_from_world_to_camera_frame(), t_wc)
-        # Transform translation in world frame to camera frame
-        T_trans = T_Rex * Tij
-        Tij.set_translation(T_trans.translation())
-        return Tij
+        Rex = utils.get_rotation_matrix_from_world_to_camera_frame()
+        # Translation in camera frame
+        t = Rex @ Tij.translation()
+        # Rotation in camera frame
+        R = utils.quarternion_to_rotation_matrix_g2o_cam_frame(Tij.rotation())
+        pose = g2o.SE3Quat(R, t)
+        return pose
     
     def calculate_relative_pose(self, cam1, cam2):
         pose1_R, pose1_t = cam1.original_pose()
         pose2_R, pose2_t = cam2.original_pose()
         cam1.relative_pose = self.get_relative_pose(pose1_R, pose1_t, pose2_R, pose2_t)
+        #print('Relative pose SE3Quat: {}'.format(cam1.relative_pose.to_vector()))
+        #print('Relative orientation euler: {}'.format(utils.euler_from_matrix(utils.quarternion_to_rotation_matrix_g2o(cam1.relative_pose.rotation()))))
+        #print('Relative orientation R: {}'.format(utils.quarternion_to_rotation_matrix_g2o(cam1.relative_pose.rotation())))
+        #Rex = utils.get_rotation_matrix_from_world_to_camera_frame()
+        #print('Relative orientation test 1: {}'.format(utils.euler_from_matrix(Rex @ np.identity(3))))
+        #print('Relative orientation 2: {}'.format(utils.euler_from_matrix(Rex @ utils.quarternion_to_rotation_matrix_g2o(cam1.relative_pose.rotation()))))
+        #print('Cam 1 pose : {}'.format(cam1.original_pose()))
+        #print('Cam 2 pose : {}'.format(cam2.original_pose()))
         
     def check_relative_pose(self, cam1, cam2):
         pose1_R, pose1_t = cam1.original_pose()
@@ -253,7 +266,7 @@ class PoseGraphOptimization:
         optimizer.add_parameter(cam)
         #self.freeze_nonlast_cameras(number_of_non_fixed_cameras=10)
         self.limit_number_of_cameras(limit=20)
-        self.unfreeze_cameras(number_of_fixed_cameras=1)
+        self.unfreeze_cameras(number_of_fixed_cameras=0)
         
         #print(f'Obs before reprojection error adjustment: {len(self.observations)}')
         #self.remove_observations_with_reprojection_errors_above_threshold(10)
@@ -321,6 +334,7 @@ class PoseGraphOptimization:
             edge.set_measurement(measurement)
             # Error in orientation weights high (meaning we are quite sure about our orientation from PX4)
             # Error in translation weights low (more room for translating the pose)
+            #TODO: Try to weight position higher than points?
             information = np.identity(6)
             #information[0,0] = 0.5
             #information[1,1] = 0.5
@@ -338,7 +352,7 @@ class PoseGraphOptimization:
         optimizer.initialize_optimization()
         optimizer.set_verbose(False)
         optimizer.optimize(20)
-        optimizer.save("test.g2o")
+        #optimizer.save("test.g2o")
 
         for idx, camera in enumerate(self.cameras):
             t = camera_vertices[camera.camera_id].estimate().translation()
