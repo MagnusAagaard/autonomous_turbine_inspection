@@ -25,9 +25,9 @@ class Display3D(object):
 
     self.scam = pangolin.OpenGlRenderState(
       pangolin.ProjectionMatrix(w, h, 420, 420, w//2, h//2, 0.2, 10000),
-      pangolin.ModelViewLookAt(0, -1, -2,
-                               0, 0, 10,
-                               0, -1, 0))
+      pangolin.ModelViewLookAt(0,0,65,
+                               100,0,65,
+                               pangolin.AxisDirection.AxisZ))
     self.handler = pangolin.Handler3D(self.scam)
 
     # Create Interactive View in window
