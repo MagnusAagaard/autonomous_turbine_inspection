@@ -17,7 +17,7 @@ from optimizer import Camera, Point, Observation, PoseGraphOptimization
 import utils
 from itertools import chain
 
-#from display import Display3D
+from display import Display3D
 
 np.set_printoptions(precision=4, suppress=True)
 
@@ -51,7 +51,7 @@ class PoseEstimator:
                                wings='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
         #self.stm = SkeletalTurbineModel(c=(360, 0), h=71.74-8, omega=np.pi+np.deg2rad(45), phi=np.pi/2)
         self.optimizer = PoseGraphOptimization(camera_matrix=self.K)
-        #self.three_dim_viewport = Display3D()
+        self.three_dim_viewport = Display3D()
         self.last_optimization_time = rospy.Time.now()
         
         self._init_subscribers()
@@ -124,7 +124,7 @@ class PoseEstimator:
         self.optimizer.create_observations(list_of_2d_pts, cam.camera_id)
         #self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
         self.last_optimization_time = rospy.Time.now()
-        #self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
+        self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
         self.launch_time = rospy.Time.now()
         
     def _publish_stm_params(self, params):
@@ -160,7 +160,6 @@ class PoseEstimator:
             if self.stm:
                 #if self.est_pose is None:
                 R,t = utils.get_camera_pose_from_pose_msg(self.pose)
-                #TODO: Cam_pose seems to get computed wrong? Check 3D visualization in pose estimator..
                 cam_pose = np.column_stack((R,t))
                 #print(cam_pose)
                 #else:
@@ -198,7 +197,7 @@ class PoseEstimator:
                     self.est_pose = self.optimizer.cameras[-1].pose()[:3,:]
                     self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
                     self.last_optimization_time = rospy.Time.now()
-                    #self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
+                    self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
                 for pt in new_kps:
                     cv2.circle(input_img, (int(pt[0]), int(pt[1])), 3, (0,0,255), 1)
         
