@@ -140,6 +140,23 @@ def quarternion_to_rotation_matrix_g2o(q, inverse=False):
     R = np.array([[R11, R12, R13], [R21, R22, R23], [R31, R32, R33]])
     return R
 
+def quarternion_to_rotation_matrix_g2o_cam_frame(q, inverse=False):
+    qw = q.w()
+    qx = -q.y() if not inverse else -q.x()
+    qy = -q.z() if not inverse else -q.y()
+    qz = q.x() if not inverse else -q.z()
+    R11 = 1 - 2*qy**2 - 2*qz**2	
+    R12 = 2*qx*qy - 2*qz*qw
+    R13 = 2*qx*qz + 2*qy*qw
+    R21 = 2*qx*qy + 2*qz*qw
+    R22 = 1 - 2*qx**2 - 2*qz**2
+    R23 = 2*qy*qz - 2*qx*qw
+    R31 = 2*qx*qz - 2*qy*qw
+    R32 = 2*qy*qz + 2*qx*qw 
+    R33 = 1 - 2*qx**2 - 2*qy**2
+    R = np.array([[R11, R12, R13], [R21, R22, R23], [R31, R32, R33]])
+    return R
+
 def quarternion_to_rotation_matrix_least_squares(q, inverse=False):
     """
     Converts quaternions q from g2o library into rotation matrix.
