@@ -7,7 +7,7 @@ import shutil
 
 import torch
 from torch.optim import Adam
-from torch.nn import BCELoss
+from torch.nn import BCELoss, MSELoss
 from torch.utils.data import DataLoader, random_split
 from torchvision.transforms import Compose, ToTensor, RandomCrop, Resize, CenterCrop, RandomHorizontalFlip
 from torch.utils.tensorboard import SummaryWriter
@@ -23,7 +23,7 @@ def parse_command_line():
         parser.add_argument('-b', '--base_dir', type=str, default='./src/hourglass_network', help='base directory of model code')
         parser.add_argument('-v', '--validate', type=int, default=2, help='number of epochs between model validation. Also saves best model when validating.')
         parser.add_argument('-i', '--interval', type=int, default=50, help='every [interval] the current model is saved')
-        parser.add_argument('-m', '--model', type=str, default='v3', help='model version (v1, v2 or v3)')
+        parser.add_argument('-m', '--model', type=str, default='v1', help='model version (v1, v2 or v3)')
         args = parser.parse_args()
         return args
 
@@ -36,11 +36,11 @@ class Trainer:
         self.save_interval = args.interval
         self.model_version = args.model
         # TensorBoard writer
-        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_6')
+        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_9')
         # Use CUDA if available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         if self.model_version == 'v1':
-            self.model = ConvEncoderDecoder(10)
+            self.model = ConvEncoderDecoder(10, extra_layer=True)
         elif self.model_version == 'v2':
             self.model = ConvEncoderDecoderV2(10)
         elif self.model_version == 'v3':
@@ -49,6 +49,7 @@ class Trainer:
         self.model.to(self.device)
         self.optimizer = Adam(self.model.parameters(), lr=1e-3)
         self.criterion = BCELoss()
+        #self.criterion = MSELoss()
         self.epoch = 0
         self.lowest_loss = 100
         if self.resume:
