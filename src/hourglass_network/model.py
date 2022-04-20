@@ -51,7 +51,9 @@ class ConvEncoderDecoderV3(nn.Module):
         self.down2 = ConvDown1(64, 128)
         self.down3 = ConvDown1(128, 256)
         self.down4 = ConvDown1(256, 512)
+        self.down5 = ConvDown1(512, 512)
         # Decoder
+        self.up5 = ConvUp1(512, 512)
         self.up4 = ConvUp1(512, 256)
         self.up3 = ConvUp1(256, 128)
         self.up2 = ConvUp1(128, 64)
@@ -62,8 +64,10 @@ class ConvEncoderDecoderV3(nn.Module):
         down2, indices_2, unpool_shape2 = self.down2(down1)
         down3, indices_3, unpool_shape3 = self.down3(down2)
         down4, indices_4, unpool_shape4 = self.down4(down3)
+        down5, indices_5, unpool_shape5 = self.down5(down4)
 
-        up4 = self.up4(down4, indices_4, unpool_shape4)
+        up5 = self.up5(down5, indices_5, unpool_shape5)
+        up4 = self.up4(up5, indices_4, unpool_shape4)
         up3 = self.up3(up4, indices_3, unpool_shape3)
         up2 = self.up2(up3, indices_2, unpool_shape2)
         up1 = self.up1(up2, indices_1, unpool_shape1)
@@ -156,8 +160,9 @@ class ConvEncoderDecoderV2(nn.Module):
         return x
     
 class ConvEncoderDecoder(nn.Module):
-    def __init__(self, inp_dim):
+    def __init__(self, inp_dim, extra_layer=False):
         super(ConvEncoderDecoder, self).__init__()
+        self.extra_layer = extra_layer
         self.inp_dim = inp_dim
         # Common functions
         self.relu = nn.ReLU()
@@ -175,8 +180,16 @@ class ConvEncoderDecoder(nn.Module):
         self.conv4 = nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1)
         self.bn4 = nn.BatchNorm2d(512)
         self.pool4 = nn.MaxPool2d(2, 2)
+        if self.extra_layer:
+            self.conv5 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1)
+            self.bn5 = nn.BatchNorm2d(512)
+            self.pool5 = nn.MaxPool2d(2, 2)
         
         # Decoder
+        if self.extra_layer:
+            self.up1e = nn.Upsample(scale_factor=2, mode='nearest')
+            self.up1e_conv = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1)
+            self.up1e_bn = nn.BatchNorm2d(512)
         self.up1 = nn.Upsample(scale_factor=2, mode='nearest')
         self.up1_conv = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1)
         self.up1_bn = nn.BatchNorm2d(512)
@@ -225,6 +238,17 @@ class ConvEncoderDecoder(nn.Module):
         x = self.bn4(x)
         x = self.relu(x)
         x = self.pool4(x)
+        if self.extra_layer:
+            # Conv5
+            x = self.conv5(x)
+            x = self.bn5(x)
+            x = self.relu(x)
+            x = self.pool5(x)
+            
+            x = self.up1e(x)
+            x = self.up1e_conv(x)
+            x = self.up1e_bn(x)
+            x = self.relu(x)
         #print(x.size())
         # Decoder
         # Up1
@@ -264,7 +288,7 @@ class ConvEncoderDecoder(nn.Module):
         return x
 
 def main():
-    model = ConvEncoderDecoderV3(10)
+    model = ConvEncoderDecoder(10, extra_layer=True)
     input = torch.randn(1,10,256,256, requires_grad=True)
     print(input.shape)
     out = model(input)
