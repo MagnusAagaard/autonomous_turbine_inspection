@@ -3,7 +3,7 @@
 import rospy
 import mavros
 from std_msgs.msg import Header, Bool, Float32MultiArray
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Pose
 from mavros_msgs.msg import State
 from mavros_msgs.srv import CommandBool, SetMode, CommandTOL
 from math import sqrt, pi, atan2
@@ -24,6 +24,7 @@ class DroneControl:
         self.current_position = PoseStamped()
         self.altitude = 65
         self.stm = None
+        self.est_offset = None
         # Setup stuff
         self._init_publishers()
         self._init_subscribers()
@@ -41,9 +42,9 @@ class DroneControl:
         # Setup subscribers
         self.state_sub = rospy.Subscriber('/mavros/state', State, self._state_cb)
         self.pos_sub = rospy.Subscriber("/mavros/local_position/pose", PoseStamped, self._position_cb)
-        self.optimized_pose_sub = rospy.Subscriber('/pose_estimator/optimized_pose', PoseStamped, self._optimized_pose_cb)
         self.next_wp_sub = rospy.Subscriber('/pose_estimator/next_wp', Bool, self._next_wp_cb)
         self.turbine_params = rospy.Subscriber('/pose_estimator/turbine_params', Float32MultiArray, self._stm_params_cb)
+        self.offset_sub = rospy.Subscriber('/pose_estimator/pose_offset', Pose, self._pose_offset_cb)
 
     def _init_services(self):
         # Setup services
@@ -67,9 +68,14 @@ class DroneControl:
         # Save home position
         if self.home_position is None:
             self.home_position = position
-            
-    def _optimized_pose_cb(self, pose):
-        self.optimized_pose = pose
+    
+    def _pose_offset_cb(self, pose_msg):
+        offset = np.zeros((3,4))
+        offset[:3,:3] = utils.quarternion_to_rotation_matrix(pose_msg.orientation)
+        offset[0,3] = pose_msg.position.x
+        offset[1,3] = pose_msg.position.y
+        offset[2,3] = pose_msg.position.z
+        self.est_offset = np.copy(offset)
         
     def _next_wp_cb(self, msg):
         self.go_to_next_wp = msg.data
@@ -127,9 +133,10 @@ class DroneControl:
         z = target_position.pose.position.z - self.current_position.pose.position.z
         return sqrt(x*x + y*y + z*z)
 
-    def create_pose_from_waypoint(self, wp):
+    def create_pose_from_waypoint(self, wp, offset=None):
         # Unpacks waypoint [x,y,z,q1,q2,q3,q4] and returns pose
         pose = PoseStamped()
+        # Create normal wp
         pose.pose.position.x = wp[0]
         pose.pose.position.y = wp[1]
         pose.pose.position.z = wp[2]
@@ -137,6 +144,25 @@ class DroneControl:
         pose.pose.orientation.y = wp[4]
         pose.pose.orientation.z = wp[5]
         pose.pose.orientation.w = wp[6]
+        if offset is not None:
+            t_off = offset[:3,3]
+            R_off = offset[:3,:3]
+            t = np.array([wp[0], wp[1], wp[2]], dtype=np.float64)
+            R = utils.quarternion_to_rotation_matrix(pose.pose.orientation)
+            M = np.identity(4)
+            M[:3, :3] = R_off @ R
+            new_q = utils.quaternion_from_matrix(M)
+            # offset is negative values
+            #TODO: Figure out how to calculate offset correctly (negative/positive etc.)
+            #TODO: Figure out if turbine base parameter should be offset instead?
+            new_t = t_off + t
+            pose.pose.position.x = new_t[0]
+            pose.pose.position.y = new_t[1]
+            pose.pose.position.z = new_t[2]
+            pose.pose.orientation.x = new_q[0]
+            pose.pose.orientation.y = new_q[1]
+            pose.pose.orientation.z = new_q[2]
+            pose.pose.orientation.w = new_q[3]
         return pose
 
     def fly_route(self, waypoints=[], hold_last_position=True, hold_first_position=False):
@@ -200,6 +226,16 @@ class DroneControl:
             wps.append([c[0], c[1], self.altitude, qs[0], qs[1], qs[2], qs[3]])
         wps_list.append(wps)
         return wps_list
+    
+    def create_static_waypoints(self):
+        wps_list = []
+        wps = []
+        wp = [10, 0, self.altitude, 0, 0, 0, 0]
+        for i in range(300):
+            wps.append(wp)
+        wps_list.append(wps)
+        return wps_list
+        
     
     def cross_lines(self, v1, v2):
         uv1 = v1 / np.linalg.norm(v1)
@@ -276,10 +312,11 @@ class DroneControl:
                 # Wait for initial pose estimation to finish
                 if self.stm:
                     rospy.loginfo('Init pose obtained')
-                    self.model_lines = self.stm.subdivide_lines()
+                    self.model_lines = self.stm.subdivide_lines(waypoints=True)
                     # Get perpendicular point at X distance
-                    self.wps = self.get_wps_from_model_lines(self.model_lines[2:])
+                    #self.wps = self.get_wps_from_model_lines(self.model_lines[2:])
                     #self.wps = self.create_square_waypoints()
+                    self.wps = self.create_static_waypoints()
                     STATE = 'WAIT_FOR_POSE_ESTIMATOR'
                 else:
                     self.publish_wp_and_sleep(current_wp)
@@ -289,7 +326,7 @@ class DroneControl:
                     self.pause_pose_estimator()
                     #TODO: Calculate offset in pose and correct wp with pose offset
                     # Fly to waypoint and wait 2 sec.
-                    current_wp = self.create_pose_from_waypoint(self.wps[line_it][wp_it])
+                    current_wp = self.create_pose_from_waypoint(self.wps[line_it][wp_it], offset=self.est_offset)
                     if line_it % 3 == 1 and len(self.wps[line_it]) - line_it > 1:
                         self.fly_to_wp(current_wp)
                     else:

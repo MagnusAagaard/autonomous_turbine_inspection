@@ -127,10 +127,11 @@ class SkeletalTurbineModel:
             ys = [center[1] - radius*np.cos(self.omega - np.deg2rad(y+90)) for y in range(0, 181, step_size)]
         zs = [center[2] for z in range(0, 181, step_size)]
         return [xs, ys, zs]
-        
-    def get_line_steps(self):
+    
+    def get_line_steps_for_waypoints(self):
         '''
         Lines are subdivided into fixed amount of points based on the initial parameters.
+        Step sizes are larger for waypoints than 3D points
         '''
         step_sizes = [1, 1, 5]
         tower_step = int(self.h / step_sizes[0])
@@ -138,15 +139,28 @@ class SkeletalTurbineModel:
         blade_step = int(self.b / step_sizes[2])
         return [tower_step, top_step, blade_step, blade_step, blade_step]
         
+    def get_line_steps(self):
+        '''
+        Lines are subdivided into fixed amount of points based on the initial parameters.
+        '''
+        step_sizes = [1, 1, 1]
+        tower_step = int(self.h / step_sizes[0])
+        top_step = int(self.r / step_sizes[1])
+        blade_step = int(self.b / step_sizes[2])
+        return [tower_step, top_step, blade_step, blade_step, blade_step]
         
-    def subdivide_lines(self, step_sizes=None):
+        
+    def subdivide_lines(self, waypoints=False):
         '''
         Subdivides the line models into points along those lines. These points
         can be searched in a perpendicular direction to find correspondence
         with the output from the neural network.
         '''
         # Step sizes in [m] - tower-->top-->wing_center-->wings
-        step_sizes = self.get_line_steps()
+        if waypoints:
+            step_sizes = self.get_line_steps_for_waypoints()
+        else:
+            step_sizes = self.get_line_steps()
         lines_divided = []
         for i, line in enumerate(self.line_model):
             mag = np.linalg.norm(line[1]-line[0])
@@ -163,7 +177,7 @@ class SkeletalTurbineModel:
         return lines_divided
             
 
-    def project_model_to_image(self, img=None, K=None, cam_pose=None, search_radius=40, pose_in_world_frame=False, show_img=False):
+    def project_model_to_image(self, img=None, K=None, cam_pose=None, search_radius=40, pose_in_world_frame=False, pose_offset=None, show_img=False):
         # Project the model into image coordinate system (2D)
         if img is None:
             img_h = 480
@@ -243,13 +257,47 @@ class SkeletalTurbineModel:
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[4,0]), int(img_pts[4,1])), (0,255,0), 1)
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[5,0]), int(img_pts[5,1])), (0,255,0), 1)
         
+        if pose_offset is not None:
+            pose_offset_cam_pose = np.copy(cam_pose)
+            #pose_offset_cam_pose[:3,3] = pose_offset[:3,3] + pose_offset[:3,:3] @ cam_pose[:3,3]
+            # The translation offset is already calculated with correct rotation applied, so pure offset
+            pose_offset_cam_pose[:3,3] = pose_offset[:3,3] + cam_pose[:3,3]
+            # Concatenate the two rotations such that cam_pose is applied first, then pose_offset
+            pose_offset_cam_pose[:3,:3] = pose_offset[:3,:3] @ cam_pose[:3,:3]
+            P = K @ pose_offset_cam_pose
+            
+        # Project to 2D
+        img_pts_offset = np.zeros((6,2))
+        for i, pt in enumerate(self.point_model):
+            # Transform point to homogenous coords
+            point = np.copy(pt)
+            point = np.append(point,1)
+            # Perspective transform
+            point = P @ point
+            # Re-scale homogenous point
+            if point[2] != 0:
+                point /= point[2]
+            img_pts_offset[i,:] = point[:2]
+        # Show results
+        for u, v in img_pts_offset:
+            cv2.circle(img, (int(u), int(v)), 5, (0,0,255), 1)
+            cv2.circle(img, (int(u), int(v)), int(search_radius), (0,0,255), 1)
+        for i in range(2):
+            cv2.line(img, (int(img_pts_offset[i,0]), int(img_pts_offset[i,1])), (int(img_pts_offset[i+1,0]), int(img_pts_offset[i+1,1])), (0,0,255), 1)
+        cv2.line(img, (int(img_pts_offset[2,0]), int(img_pts_offset[2,1])), (int(img_pts_offset[3,0]), int(img_pts_offset[3,1])), (0,0,255), 1)
+        cv2.line(img, (int(img_pts_offset[2,0]), int(img_pts_offset[2,1])), (int(img_pts_offset[4,0]), int(img_pts_offset[4,1])), (0,0,255), 1)
+        cv2.line(img, (int(img_pts_offset[2,0]), int(img_pts_offset[2,1])), (int(img_pts_offset[5,0]), int(img_pts_offset[5,1])), (0,0,255), 1)
+        
         if show_img:
             cv2.imshow('Projected point model', img)
             cv2.waitKey(0)
         rst_pts = []
-        #TODO: Do I need to round these? Lines divided 2D is floats
-        # CHANGED FROM img_pts to img_pts_init
-        # AND ADDED THIS P AGAIN
+        #TODO: Need to use estimated offset..? Else there is problems when we have moved
+        #TEST: Changed such that more point correspondences (1m seperated along wings), but still 5m wps
+        #NOTE: !
+        # IF OLD MODEL NEEDS TO BE USED FOR MODEL ESTIMATION (LINES AND PTS LOCATIONS)
+        # CHANGE FROM img_pts to img_pts_init
+        # AND UNCOMMENT THIS P AGAIN
         P = K @ cam_pose # NOW USES OLD MODEL AND NOT ESTIMATED FOR LINES AND PTS
         for _pt in img_pts_init:
             rst_pts.append([int(_pt[0]), int(_pt[1])])

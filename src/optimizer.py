@@ -139,12 +139,11 @@ class PoseGraphOptimization:
         
     def freeze_nonlast_cameras(self, number_of_non_fixed_cameras = 5):
         for idx, camera in enumerate(self.cameras[::-1]):
-            print(idx, camera.camera_id)
             if idx >= number_of_non_fixed_cameras:
                 self.cameras[idx].fixed = True
             else:
                 self.cameras[idx].fixed = False
-        self.cameras[0].fixed = True
+        #self.cameras[0].fixed = True
         
     def unfreeze_cameras(self, number_of_fixed_cameras = 5):
         for idx, camera in enumerate(self.cameras):
@@ -154,8 +153,8 @@ class PoseGraphOptimization:
                 self.cameras[idx].fixed = True
                 
     def limit_number_of_cameras(self, limit=20):
-        print('removing camera')
         if len(self.cameras) > limit:
+            print('removing camera')
             cam_to_remove = self.cameras[0]
             # Remove observation associated with camera
             filtered_obs = []
@@ -252,6 +251,38 @@ class PoseGraphOptimization:
         Tij = np.linalg.inv(p1) @ p2
         print(Tij)
         
+    def get_relative_pose_offset(self):
+        '''
+        Calculates relative pose offset between optimized pose and original pose.
+        Uses last camera as that is the current best estimate.
+        '''
+        opti_R = self.cameras[-1].R
+        opti_t = self.cameras[-1].t
+        ori_R, ori_t = self.cameras[-1].original_pose()
+        # POSES OF CAMS: right is x, down is y, front is z - negative values corresponds to positive axis movement..
+        #opti_t = np.copy(ori_t) + np.array([1,0,0])
+        #opti_R = np.copy(ori_R)
+        # Get transform from pose 1 --> pose 2 (ie. offset)
+        pose1 = g2o.SE3Quat(ori_R, ori_t)
+        pose2 = g2o.SE3Quat(opti_R, opti_t)
+        # Relative transformation between pose 1 and 2 in world frame
+        Tij = pose1.inverse()*pose2
+        Rex = utils.get_rotation_matrix_from_world_to_camera_frame()
+        # Translation in camera frame
+        t = Rex @ Tij.translation()
+        # Rotation in camera frame
+        R = utils.quarternion_to_rotation_matrix_g2o_cam_frame(Tij.rotation())
+        # Create pose to make sure that rotation is normalized
+        pose = g2o.SE3Quat(R, t)
+        ret = np.eye(4)
+        ret[:3, :3] = utils.quarternion_to_rotation_matrix_g2o(pose.rotation())
+        ret[:3, 3] = pose.translation()
+        print('Estimated pose offset:')
+        print(f'Translation: {ret[:3,3]}')
+        print(f'Rotation: {utils.euler_from_matrix(ret[:3,:3])}')
+        print(f'ret {ret}')
+        return ret
+        
     def optimize(self):
         optimizer = g2o.SparseOptimizer()
         solver = g2o.BlockSolverSE3(g2o.LinearSolverCholmodSE3())
@@ -264,9 +295,9 @@ class PoseGraphOptimization:
         cam = g2o.CameraParameters(focal_length, principal_point, baseline)
         cam.set_id(0)
         optimizer.add_parameter(cam)
-        #self.freeze_nonlast_cameras(number_of_non_fixed_cameras=10)
-        self.limit_number_of_cameras(limit=20)
-        self.unfreeze_cameras(number_of_fixed_cameras=0)
+        #self.freeze_nonlast_cameras(number_of_non_fixed_cameras=20)
+        self.limit_number_of_cameras(limit=50)
+        #self.unfreeze_cameras(number_of_fixed_cameras=0)
         
         #print(f'Obs before reprojection error adjustment: {len(self.observations)}')
         #self.remove_observations_with_reprojection_errors_above_threshold(10)
@@ -310,10 +341,10 @@ class PoseGraphOptimization:
             edge.set_measurement(observation.image_coordinates)
             edge.set_information(np.identity(2))
             # 0.01 and 0.01 to weight line correspondences lower than points
-            if observation.point_id >= 6:
-                edge.set_information(np.array([[0.01, 0.0],[0.0, 0.01]]))
-            else:
-                edge.set_information(np.identity(2))
+            #if observation.point_id >= 6:
+            #    edge.set_information(np.array([[0.01, 0.0],[0.0, 0.01]]))
+            #else:
+            #    edge.set_information(np.identity(2))
             edge.set_robust_kernel(g2o.RobustKernelHuber())
             #edge.set_robust_kernel(g2o.RobustKernelHuber(np.sqrt(5.991)))
 
@@ -345,8 +376,8 @@ class PoseGraphOptimization:
             optimizer.add_edge(edge)
             
 
-        print('num vertices:', len(optimizer.vertices()))
-        print('num edges:', len(optimizer.edges()))
+        #print('num vertices:', len(optimizer.vertices()))
+        #print('num edges:', len(optimizer.edges()))
 
         print('Performing full BA:')
         optimizer.initialize_optimization()

@@ -8,7 +8,7 @@ from copy import copy
 
 from std_msgs.msg import Bool, Float32, Float32MultiArray
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Pose
 from skeletal_turbine_model import SkeletalTurbineModel
 from chamfer_matcher import ChamferMatcher
 from renderer import Renderer
@@ -34,10 +34,10 @@ class PoseEstimator:
         self.time_between_optimizations = rospy.Duration(secs=1, nsecs=0)
         self.time_before_running_optimization = rospy.Duration(secs=1, nsecs=0)
         # Number of frames added to pose graph before moving to next wp
-        self.n_frames_for_pose_graph = 5
+        self.n_frames_for_pose_graph = 3
         self.n_frames_added = 0
         self.pose = PoseStamped()
-        self.est_pose = None
+        self.est_pose_offset = None
         #TODO: Add this as a launch parameter
         self.K = np.array([[554.920125, 0.000000, 320.077433], 
                      [0.000000, 554.921917, 239.661438], 
@@ -67,9 +67,9 @@ class PoseEstimator:
         
     def _init_publishers(self):
         # Setup publishers
-        self.optimized_pose_pub = rospy.Publisher('/pose_estimator/optimized_pose', PoseStamped, queue_size=1)
         self.next_wp_pub = rospy.Publisher('/pose_estimator/next_wp', Bool, queue_size=1)
         self.stm_params_pub = rospy.Publisher('/pose_estimator/turbine_params', Float32MultiArray, queue_size=1, latch=True)
+        self.pose_offset_pub = rospy.Publisher('/pose_estimator/pose_offset', Pose, queue_size=1)
     
     def _init_skeletal_model(self):
         while self.img is None:
@@ -140,6 +140,26 @@ class PoseEstimator:
         arr.data.append(roll)
         self.stm_params_pub.publish(arr)
         
+    def _publish_pose_offset(self):
+        if self.est_pose_offset is None:
+            return
+        pose = Pose()
+        offset = np.linalg.inv(utils.get_rotation_matrix_from_world_to_camera_frame()) @ self.est_pose_offset
+        print(f'published trans: {offset[:3,3]}')
+        pose.position.x = -offset[0,3]
+        pose.position.y = -offset[1,3]
+        pose.position.z = -offset[2,3]
+        M = np.identity(4)
+        M[:3, :3] = self.est_pose_offset[:3,:3]
+        q = utils.quaternion_from_matrix(M)
+        # q[0] = -q.y(), q[1] = -q.z(), q[2] = q.x()
+        # and we want negative offset
+        pose.orientation.x = -q[2]
+        pose.orientation.y = q[0]
+        pose.orientation.z = q[1]
+        pose.orientation.w = q[3]
+        self.pose_offset_pub.publish(pose)
+        
     def __trigger_cb(self, msg):
         self.trigger_save = msg.data
         
@@ -158,24 +178,20 @@ class PoseEstimator:
         if self.run_optimizer:
             self.img = clean_img.copy()
             if self.stm:
-                #if self.est_pose is None:
                 R,t = utils.get_camera_pose_from_pose_msg(self.pose)
                 cam_pose = np.column_stack((R,t))
-                #print(cam_pose)
-                #else:
-                #    R = self.est_pose[:,:3]
-                #    t = self.est_pose[:,3]
-                #    cam_pose = np.column_stack((R,t))
-                #cam_pose = self.get_extrensic_parameters()
                 
                 # pixels = known_width*focal_length/D'
                 est_D = 100
-                if cam_pose[2,3] < -50:
+                cam_pose_homo = np.eye(4)
+                cam_pose_homo[:3, :3] = R
+                cam_pose_homo[:3, 3] = t
+                if np.linalg.inv(cam_pose_homo)[0,3] > 50:
                     est_D = 15
                 search_radius = 4*554.92/est_D
-                #TODO: Check actual wing height and use this as search dist
+                #TODO: Check actual wing height and use this as search dist (around 2.5m so 3 is good)
                 search_dist = 3*554.92/est_D
-                kps, lines_divided_2d = self.stm.project_model_to_image(img=drone_img, K=self.K, cam_pose=cam_pose, search_radius=search_radius, pose_in_world_frame=False)
+                kps, lines_divided_2d = self.stm.project_model_to_image(img=drone_img, K=self.K, cam_pose=cam_pose, search_radius=search_radius, pose_offset=self.est_pose_offset, pose_in_world_frame=False)
                 output = self.inferencer.forward(input_img, kps)
                 #TODO: Make a way to process it all and save a number of point correspondences
                 # checking whether they are present in the current image or not
@@ -192,9 +208,9 @@ class PoseEstimator:
                     self.optimizer.optimize()
                     self.n_frames_added += 1
                     # Use current point estimate from optimizer?
-                    self.stm.update_point_model_from_optimizer(self.optimizer.points[:6])
-                    # Use current pose estimate from optimzier
-                    self.est_pose = self.optimizer.cameras[-1].pose()[:3,:]
+                    #self.stm.update_point_model_from_optimizer(self.optimizer.points[:6])
+                    # Use current pose estimate offset from optimzier
+                    self.est_pose_offset = self.optimizer.get_relative_pose_offset()[:3,:]
                     self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
                     self.last_optimization_time = rospy.Time.now()
                     self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
@@ -202,6 +218,7 @@ class PoseEstimator:
                     cv2.circle(input_img, (int(pt[0]), int(pt[1])), 3, (0,0,255), 1)
         
         if self.n_frames_added >= self.n_frames_for_pose_graph:
+            self._publish_pose_offset()
             self.next_wp_pub.publish(Bool(data=True))
             
         if not self.run_optimizer:
