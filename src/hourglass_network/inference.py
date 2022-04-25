@@ -16,7 +16,9 @@ class Inference:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f'Device available for inference: {self.device}')
         if version == 'v1':
-            self.model = ConvEncoderDecoder(10)
+            self.model = ConvEncoderDecoder(10, extra_layer=False)
+        elif version == 'v1e':
+            self.model = ConvEncoderDecoder(10, extra_layer=True)
         elif version == 'v2':
             self.model = ConvEncoderDecoderV2(10)
         else:
@@ -198,7 +200,7 @@ class Inference:
             return [int(pt[0]), int(pt[1])]
         return None
 
-    def get_pt_from_heatmap_within_radius(self, img, pt, radius, original_image_dims, threshold = 0.6, upscale=True):
+    def get_pt_from_heatmap_within_radius(self, img, pt, radius, original_image_dims, threshold = 0.5, upscale=True):
         mask = np.zeros(img.shape[:2], dtype=np.uint8)
         cv2.circle(mask, (pt[0], pt[1]), radius, 255, -1)
         masked = cv2.bitwise_and(img, img, mask=mask)
@@ -244,7 +246,8 @@ class Inference:
 
 def main():
     # Get input image
-    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run5/model_best_epoch744.pt', version='v2')
+    #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run5/model_best_epoch744.pt', version='v2')
+    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run10/checkpoint_800.pt', version='v1e')
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run3/model_best_epoch704.pt')
     annotation_idx = 0
     #inferencer.test_timing(annotation_idx)
