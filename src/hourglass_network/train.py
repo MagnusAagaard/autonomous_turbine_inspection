@@ -36,7 +36,7 @@ class Trainer:
         self.save_interval = args.interval
         self.model_version = args.model
         # TensorBoard writer
-        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_9')
+        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_11')
         # Use CUDA if available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         if self.model_version == 'v1':
@@ -163,7 +163,7 @@ class Trainer:
         
     def train(self):
         # Run trainer
-        dataset = WindturbineDataset(f'{self.base_dir}/data/annotations_151.json', f'{self.base_dir}/data/all_data', train_transform=Compose([ToTensor(), CenterCrop(256), RandomHorizontalFlip(0.5)]), test_transform=Compose([ToTensor(), Resize(256), CenterCrop(256)]))
+        dataset = WindturbineDataset(f'{self.base_dir}/data/annotations_151.json', f'{self.base_dir}/data/all_data', train_transform=Compose([ToTensor(), CenterCrop(480), RandomHorizontalFlip(0.5)]), test_transform=Compose([ToTensor(), Resize(480), CenterCrop(480)]))
         train_val_split = int(len(dataset)*0.8)
         self.train_set, self.val_set = random_split(dataset, [train_val_split, len(dataset)-train_val_split], generator=torch.Generator().manual_seed(42))
         print(f'Length of train dataset: {len(self.train_set)} \t Length of val dataset: {len(self.val_set)}')
