@@ -171,8 +171,10 @@ def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_
     #show_keypoints_on_img(kps, img, show=True)
     kernel_size = 0    # From OpenCV formula. If set at 0, the kernel size is automatically calculated as 31 with sigma=5 based on sigma and vice versa if sigma = 0
     # Random affine transform applied to input_img/prior (10 pixels max)
-    sx = 10./img.shape[1]
-    sy = 10./img.shape[0]
+    sx = 20./img.shape[1]
+    sy = 20./img.shape[0]
+    #sx = 0.1
+    #sy = 0.1
     transform = transforms.RandomAffine(degrees=2, translate=(sx, sy))
     
     # Data variables
