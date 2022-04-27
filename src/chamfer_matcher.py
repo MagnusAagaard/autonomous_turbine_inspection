@@ -14,9 +14,12 @@ class ChamferMatcher:
         self.img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         self.img_edges = cv2.Canny(self.img,50,100, apertureSize=3, L2gradient=True)
         self.detect_and_remove_horizontal_lines(self.img_edges)
-        self.dist_img = cv2.distanceTransform(255 - self.img_edges, cv2.DIST_L1, 3).astype(np.uint8)
+        #self.dist_img = cv2.distanceTransform(255 - self.img_edges, cv2.DIST_L1, 3).astype(np.uint8)
+        self.dist_img = cv2.distanceTransform(255 - self.img_edges, cv2.DIST_L1, 3)
+        self.dist_img *= 255/self.dist_img.max()
+        self.dist_img = self.dist_img.astype(np.uint8)
         self.render = render
-        self.template = cv2.cvtColor(self.render.offscreen_render([-100, -0.8, 66 + 8, 6, 40]), cv2.COLOR_BGR2GRAY)
+        self.template = cv2.cvtColor(self.render.offscreen_render([-100, 0, 66 + 8, 30, 46]), cv2.COLOR_BGR2GRAY)
         self.detect_edges()
         self.match(init=True)
         _, top_left, bottom_right = self.match()
@@ -50,7 +53,7 @@ class ChamferMatcher:
         Detects longest horizontal line (horizon) and removes it. (if it is there..)
         '''
         result = self.img_color.copy()
-        horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40,1))
+        horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (60,1))
         detect_horizontal = cv2.morphologyEx(img, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
         cnts = cv2.findContours(detect_horizontal, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = cnts[0] if len(cnts) == 2 else cnts[1]
@@ -278,12 +281,13 @@ class ChamferMatcher:
         return scores[idx], estimates[idx]
 
 def main():
-    img = cv2.imread('./scripts/image_data/gazebo_100_90.png')
+    img = cv2.imread('./scripts/image_data/gazebo_100_45.png')
     render = Renderer(tower='./models/vestas_v52_rotation/meshes/vestas_v52_tower.stl', wings='./models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
     #print('render\t\t', timeit.timeit(lambda: render.offscreen_render([-100, 0, 65 + 8]), number=300) / 300)
     cm = ChamferMatcher(img, render)
     #cm.detect_edges()
     #cm.match()
+    print('done')
     
     # Base estimates: UAV located at tower height.
     # Wind turbine located directly in front in the middle of the image with wings oriented
@@ -293,7 +297,7 @@ def main():
     init_roll = 20
     init_yaw = 0
     init_est = [init_x, init_y, init_z, init_roll, init_yaw]
-    best_estimate = cm.run_optimization(init_est, 5)
+    #best_estimate = cm.run_optimization(init_est, 5)
 
 if __name__ == "__main__":
     main()
