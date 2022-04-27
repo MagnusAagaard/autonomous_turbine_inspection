@@ -36,11 +36,11 @@ class Trainer:
         self.save_interval = args.interval
         self.model_version = args.model
         # TensorBoard writer
-        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_11')
+        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_13')
         # Use CUDA if available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         if self.model_version == 'v1':
-            self.model = ConvEncoderDecoder(10, extra_layer=True)
+            self.model = ConvEncoderDecoder(10, extra_layer=False)
         elif self.model_version == 'v2':
             self.model = ConvEncoderDecoderV2(10)
         elif self.model_version == 'v3':
@@ -111,8 +111,10 @@ class Trainer:
             plt.imshow(input_img[...,::-1])
             ax.set_title("Input")
             ax = fig.add_subplot(9,images.shape[0],images.shape[0]+idx+1,xticks=[],yticks=[])
-            output_img = output[:,:,:3]
-            plt.imshow(output_img[...,::-1])
+            #NOTE: Changed HERE
+            #output_img = output[:,:,:3]
+            #plt.imshow(output_img[...,::-1])
+            plt.imshow(input_img[...,::-1])
             ax.set_title("Output")
             ax = fig.add_subplot(9,images.shape[0],2*images.shape[0]+idx+1,xticks=[],yticks=[])
             plt.imshow(output[:,:,3], cmap='gray', vmin=0, vmax=np.max(output[:,:,3]))
@@ -147,7 +149,8 @@ class Trainer:
             for data in self.val_dataloader:
                 input_images, label_images = data
                 input_images = input_images.to(self.device)
-                label_images = label_images.to(self.device)
+                #NOTE: Changed HERE and in self.plot_preds()
+                label_images = label_images[:,3:,:,:].to(self.device)
                 outputs = self.model(input_images)
                 loss = self.criterion(outputs, label_images)
                 val_loss += loss.item()*input_images.size(0)
@@ -163,7 +166,7 @@ class Trainer:
         
     def train(self):
         # Run trainer
-        dataset = WindturbineDataset(f'{self.base_dir}/data/annotations_151.json', f'{self.base_dir}/data/all_data', train_transform=Compose([ToTensor(), CenterCrop(480), RandomHorizontalFlip(0.5)]), test_transform=Compose([ToTensor(), Resize(480), CenterCrop(480)]))
+        dataset = WindturbineDataset(f'{self.base_dir}/data/annotations_151.json', f'{self.base_dir}/data/all_data', train_transform=Compose([ToTensor(), CenterCrop(256), RandomHorizontalFlip(0.5)]), test_transform=Compose([ToTensor(), Resize(256), CenterCrop(256)]))
         train_val_split = int(len(dataset)*0.8)
         self.train_set, self.val_set = random_split(dataset, [train_val_split, len(dataset)-train_val_split], generator=torch.Generator().manual_seed(42))
         print(f'Length of train dataset: {len(self.train_set)} \t Length of val dataset: {len(self.val_set)}')
@@ -187,7 +190,8 @@ class Trainer:
             for data in self.train_dataloader:
                 input_images, label_images = data
                 input_images = input_images.to(self.device)
-                label_images = label_images.to(self.device)
+                #NOTE: Changed HERE and in self.evaluate()
+                label_images = label_images[:,3:,:,:].to(self.device)
                 self.optimizer.zero_grad()
                 outputs = self.model(input_images)
                 loss = self.criterion(outputs, label_images)

@@ -204,7 +204,8 @@ class ConvEncoderDecoder(nn.Module):
         self.up4_bn = nn.BatchNorm2d(64)
         
         # Output
-        self.out_conv = nn.Conv2d(64, inp_dim, kernel_size=1, stride=1, padding=0)
+        #self.out_conv = nn.Conv2d(64, inp_dim, kernel_size=1, stride=1, padding=0)
+        self.out_conv = nn.Conv2d(64, 7, kernel_size=1, stride=1, padding=0)
         
         
     def forward(self, x):
@@ -288,7 +289,7 @@ class ConvEncoderDecoder(nn.Module):
         return x
 
 def main():
-    model = ConvEncoderDecoder(10, extra_layer=True)
+    model = ConvEncoderDecoder(10, extra_layer=False)
     input = torch.randn(1,10,256,256, requires_grad=True)
     print(input.shape)
     out = model(input)
