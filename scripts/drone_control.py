@@ -314,9 +314,9 @@ class DroneControl:
                     rospy.loginfo('Init pose obtained')
                     self.model_lines = self.stm.subdivide_lines(waypoints=True)
                     # Get perpendicular point at X distance
-                    #self.wps = self.get_wps_from_model_lines(self.model_lines[2:])
+                    self.wps = self.get_wps_from_model_lines(self.model_lines[2:])
                     #self.wps = self.create_square_waypoints()
-                    self.wps = self.create_static_waypoints()
+                    #self.wps = self.create_static_waypoints()
                     STATE = 'WAIT_FOR_POSE_ESTIMATOR'
                 else:
                     self.publish_wp_and_sleep(current_wp)
@@ -326,7 +326,8 @@ class DroneControl:
                     self.pause_pose_estimator()
                     #TODO: Calculate offset in pose and correct wp with pose offset
                     # Fly to waypoint and wait 2 sec.
-                    current_wp = self.create_pose_from_waypoint(self.wps[line_it][wp_it], offset=self.est_offset)
+                    #current_wp = self.create_pose_from_waypoint(self.wps[line_it][wp_it], offset=self.est_offset)
+                    current_wp = self.create_pose_from_waypoint(self.wps[line_it][wp_it], offset=None)
                     if line_it % 3 == 1 and len(self.wps[line_it]) - line_it > 1:
                         self.fly_to_wp(current_wp)
                     else:
