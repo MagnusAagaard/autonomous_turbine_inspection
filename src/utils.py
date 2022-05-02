@@ -388,3 +388,10 @@ def convolve_mask(img: np.array, kernel: np.array) -> np.array:
             convolved_img[i, j] = np.sum(cv2.bitwise_and(mat, mat, mask=kernel))
             
     return convolved_img
+
+def main():
+    q = [0.707, 0.707, 0, 0]
+    print(quarternion_to_rotation_matrix_least_squares(q))
+
+if __name__ == "__main__":
+    main()
