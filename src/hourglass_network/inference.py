@@ -1,11 +1,12 @@
 import torch
 import numpy as np
 import cv2
+from PIL import Image
 import matplotlib.pyplot as plt
 from torchvision.transforms import Compose, ToTensor, CenterCrop, Resize, RandomCrop
 from torch.autograd import Variable
 
-from hourglass_network.model import ConvEncoderDecoder, ConvEncoderDecoderV2
+from hourglass_network.model import ConvEncoderDecoder, ConvEncoderDecoderV2, ConvEncoderDecoderCor
 from hourglass_network import preprocessing
 from skeletal_turbine_model import SkeletalTurbineModel
 import timeit
@@ -19,6 +20,8 @@ class Inference:
             self.model = ConvEncoderDecoder(10, extra_layer=False)
         elif version == 'v1e':
             self.model = ConvEncoderDecoder(10, extra_layer=True)
+        elif version == 'v1c':
+            self.model = ConvEncoderDecoderCor(10, extra_layer=False)
         elif version == 'v2':
             self.model = ConvEncoderDecoderV2(10)
         else:
@@ -53,28 +56,47 @@ class Inference:
         input_img, label_img = preprocessing.process_annotations(annotations[annotation_idx])
         img = input_img[:,:,:3].copy()
         # Show label image points + lines
-        plt.figure(1)
-        plt.imshow(np.sum(label_img[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=1.0)
+        #plt.figure(1)
+        #plt.imshow(np.sum(label_img[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=1.0)
         # Show input image points + lines (more Gaussian blur)
-        plt.figure(2)
-        plt.imshow(np.sum(input_img[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=1.0)
+        #plt.figure(2)
+        #plt.imshow(np.sum(input_img[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=1.0)
         # Run inference
         output, cropped_input_img = self.forward_test(input_img)
         
         cropped_img = cropped_input_img[:,:,:3].copy()
         # Show output
         plt.figure(3)
-        plt.imshow(np.sum(output[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=np.sum(output[:,:,3:].max()))
+        #plt.imshow(np.sum(output[:,:,3:], axis=2), cmap='gray', vmin=0, vmax=np.sum(output[:,:,3:].max()))
+        plt.imshow(np.sum(output, axis=2), cmap='gray', vmin=0, vmax=np.sum(output).max())
         output_img = output[:,:,:3]
         # Points
-        wing_tips = output[:,:,3]
-        wing_center = output[:,:,4]
-        tower_top = output[:,:,5]
-        tower_bottom = output[:,:,6]
+        #wing_tips = output[:,:,3]
+        wing_tips = output[:,:,0]
+        #wing_center = output[:,:,4]
+        wing_center = output[:,:,1]
+        #tower_top = output[:,:,5]
+        tower_top = output[:,:,2]
+        #tower_bottom = output[:,:,6]
+        tower_bottom = output[:,:,3]
         # Lines
-        tower_bottom_to_tower_top = output[:,:,7]
-        tower_top_to_wing_center = output[:,:,8]
-        wing_center_to_wing_tips = output[:,:,9]
+        #tower_bottom_to_tower_top = output[:,:,7]
+        tower_bottom_to_tower_top = output[:,:,4]
+        #tower_top_to_wing_center = output[:,:,8]
+        tower_top_to_wing_center = output[:,:,5]
+        #wing_center_to_wing_tips = output[:,:,9]
+        wing_center_to_wing_tips = output[:,:,6]
+        #TODO: Convert to PIL image and save to pdf?
+        #cv2.imshow('label_lines', label_img[:,80:560,7:])
+        cv2.imshow('label_lines', label_img[:,:,7:])
+        #cv2.imshow('label_pts', label_img[:,:,::-1][:,80:560,4:7])
+        cv2.imshow('label_pts', label_img[:,:,::-1][:,:,4:7])
+        cv2.imshow('input_lines', cropped_input_img[:,:,7:])
+        cv2.imshow('input_pts', cropped_input_img[:,:,::-1][:,:,4:7])
+        #cv2.imshow('output_lines', output[:,:,7:])
+        cv2.imshow('output_lines', output[:,:,4:])
+        #cv2.imshow('output_pts', output[:,:,::-1][:,:,4:7])
+        cv2.imshow('output_pts', output[:,:,::-1][:,:,4:7])
         
         upscale = True
         vis_img = img
@@ -84,12 +106,12 @@ class Inference:
         #tower_top_pt = self.get_pt_from_heatmap(tower_top, original_image_dims=test_img.shape, upscale=upscale)
         #tower_bottom_pt = self.get_pt_from_heatmap(tower_bottom, original_image_dims=test_img.shape, upscale=upscale)
         wing_tip_pts = []
-        wing_tip_pts.append(self.get_pt_from_heatmap_within_radius(wing_tips, self.downscale_pt(kps[5][:2],test_img.shape), 10, test_img.shape, upscale=upscale))
-        wing_tip_pts.append(self.get_pt_from_heatmap_within_radius(wing_tips, self.downscale_pt(kps[4][:2],test_img.shape), 10, test_img.shape, upscale=upscale))
-        wing_tip_pts.append(self.get_pt_from_heatmap_within_radius(wing_tips, self.downscale_pt(kps[3][:2],test_img.shape), 10, test_img.shape, upscale=upscale))
-        wing_center_pt = self.get_pt_from_heatmap_within_radius(wing_center, self.downscale_pt(kps[2][:2],test_img.shape), 10, test_img.shape, upscale=upscale)
-        tower_top_pt = self.get_pt_from_heatmap_within_radius(tower_top, self.downscale_pt(kps[1][:2],test_img.shape), 10, test_img.shape, upscale=upscale)
-        tower_bottom_pt = self.get_pt_from_heatmap_within_radius(tower_bottom, self.downscale_pt(kps[0][:2],test_img.shape), 10, test_img.shape, upscale=upscale)
+        wing_tip_pts.append(self.get_pt_from_heatmap_within_radius(wing_tips, self.downscale_pt(kps[5][:2],test_img.shape), 10, test_img.shape, threshold = 0.1, upscale=upscale))
+        wing_tip_pts.append(self.get_pt_from_heatmap_within_radius(wing_tips, self.downscale_pt(kps[4][:2],test_img.shape), 10, test_img.shape, threshold = 0.1, upscale=upscale))
+        wing_tip_pts.append(self.get_pt_from_heatmap_within_radius(wing_tips, self.downscale_pt(kps[3][:2],test_img.shape), 10, test_img.shape, threshold = 0.1, upscale=upscale))
+        wing_center_pt = self.get_pt_from_heatmap_within_radius(wing_center, self.downscale_pt(kps[2][:2],test_img.shape), 10, test_img.shape, threshold = 0.2, upscale=upscale)
+        tower_top_pt = self.get_pt_from_heatmap_within_radius(tower_top, self.downscale_pt(kps[1][:2],test_img.shape), 10, test_img.shape, threshold = 0.2, upscale=upscale)
+        tower_bottom_pt = self.get_pt_from_heatmap_within_radius(tower_bottom, self.downscale_pt(kps[0][:2],test_img.shape), 10, test_img.shape, threshold = 0.2, upscale=upscale)
         for pt in wing_tip_pts:
             cv2.circle(vis_img, pt, 5, (0,1,0), -1)
         if wing_center_pt:
@@ -114,7 +136,7 @@ class Inference:
         plt.imshow(wing_center, cmap='gray')
         # Show results
         cv2.imshow('img',img)
-        cv2.imshow('Output_img', output_img)
+        #cv2.imshow('Output_img', output_img)
         cv2.imshow('Cropped img', cropped_img)
         plt.show()
         
@@ -123,6 +145,11 @@ class Inference:
         with torch.no_grad():
             transform = Compose([ToTensor(), Resize(256), CenterCrop(256)])
             cropped_input_img = transform(input_img)
+            f_input = cropped_input_img.numpy().transpose(1,2,0)
+            #cv2.imshow('input_img', f_input[:,:,:3])
+            #cv2.imshow('input_pts', np.sum(f_input[:,:,3:7], axis=2))
+            #cv2.imshow('input_lines', np.sum(f_input[:,:,7:], axis=2))
+            #cv2.imshow('input_lines', f_input[:,:,7:])
             # Expand dim such that shape is now (B, C, H, W) from (C, H, W)
             cropped_input_img = torch.unsqueeze(cropped_input_img,0)
             cropped_input_img = Variable(cropped_input_img.to(self.device))
@@ -135,13 +162,16 @@ class Inference:
     def forward(self, input_img, kps):
         # Transform input img with Gaussian + lines and kps
         input_img = preprocessing.create_simple_input_img(kps, input_img, sigma=20)
-        #cv2.imshow('input_img_full', np.sum(input_img[:,:,3:], axis=2))
+        #cv2.imshow('input_pts', np.sum(input_img[:,:,3:7], axis=2))
+        #cv2.imshow('input_lines', np.sum(input_img[:,:,7:], axis=2))
         # Run inference
         with torch.no_grad():
             transform = Compose([ToTensor(), Resize(256), CenterCrop(256)])
             cropped_input_img = transform(input_img)
             f_input = cropped_input_img.numpy().transpose(1,2,0)
             #cv2.imshow('input_img', f_input[:,:,:3])
+            #cv2.imshow('input_pts', np.sum(f_input[:,:,3:7], axis=2))
+            #cv2.imshow('input_lines', np.sum(f_input[:,:,7:], axis=2))
             # Expand dim such that shape is now (B, C, H, W) from (C, H, W)
             cropped_input_img = torch.unsqueeze(cropped_input_img,0)
             cropped_input_img = Variable(cropped_input_img.to(self.device))
@@ -247,8 +277,10 @@ class Inference:
 def main():
     # Get input image
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run5/model_best_epoch744.pt', version='v2')
-    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run10/checkpoint_800.pt', version='v1e')
+    #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run11/model_best.pt', version='v1e')
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run3/model_best_epoch704.pt')
+    #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run13/model_best.pt')
+    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run14/model_best.pt', version='v1c')
     annotation_idx = 0
     #inferencer.test_timing(annotation_idx)
     inferencer.run_test(annotation_idx)

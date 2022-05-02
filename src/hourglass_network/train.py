@@ -13,7 +13,7 @@ from torchvision.transforms import Compose, ToTensor, RandomCrop, Resize, Center
 from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 
-from model import ConvEncoderDecoder, ConvEncoderDecoderV2, ConvEncoderDecoderV3
+from model import ConvEncoderDecoder, ConvEncoderDecoderV2, ConvEncoderDecoderV3, ConvEncoderDecoderCor
 from dataloader import WindturbineDataset
 
 def parse_command_line():
@@ -23,7 +23,7 @@ def parse_command_line():
         parser.add_argument('-b', '--base_dir', type=str, default='./src/hourglass_network', help='base directory of model code')
         parser.add_argument('-v', '--validate', type=int, default=2, help='number of epochs between model validation. Also saves best model when validating.')
         parser.add_argument('-i', '--interval', type=int, default=50, help='every [interval] the current model is saved')
-        parser.add_argument('-m', '--model', type=str, default='v1', help='model version (v1, v2 or v3)')
+        parser.add_argument('-m', '--model', type=str, default='v1c', help='model version (v1, v2 or v3)')
         args = parser.parse_args()
         return args
 
@@ -36,11 +36,15 @@ class Trainer:
         self.save_interval = args.interval
         self.model_version = args.model
         # TensorBoard writer
-        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_13')
+        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_14')
         # Use CUDA if available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         if self.model_version == 'v1':
             self.model = ConvEncoderDecoder(10, extra_layer=False)
+        elif self.model_version == 'v1e':
+            self.model = ConvEncoderDecoder(10, extra_layer=True)
+        elif self.model_version == 'v1c':
+            self.model = ConvEncoderDecoderCor(10, extra_layer=False)
         elif self.model_version == 'v2':
             self.model = ConvEncoderDecoderV2(10)
         elif self.model_version == 'v3':
