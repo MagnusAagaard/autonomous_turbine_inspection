@@ -221,7 +221,7 @@ class SkeletalTurbineModel:
             # Perspective transform
             point = P @ point
             # Re-scale homogenous point
-            if point[2] != 0:
+            if point[2] > 0:
                 point /= point[2]
             img_pts_init[i,:] = point[:2]
         # Show results
@@ -244,7 +244,7 @@ class SkeletalTurbineModel:
             # Perspective transform
             point = P @ point
             # Re-scale homogenous point
-            if point[2] != 0:
+            if point[2] > 0:
                 point /= point[2]
             img_pts[i,:] = point[:2]
         # Show results
@@ -258,13 +258,17 @@ class SkeletalTurbineModel:
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[5,0]), int(img_pts[5,1])), (0,255,0), 1)
         
         if pose_offset is not None:
-            pose_offset_cam_pose = np.copy(cam_pose)
-            #pose_offset_cam_pose[:3,3] = pose_offset[:3,3] + pose_offset[:3,:3] @ cam_pose[:3,3]
-            # The translation offset is already calculated with correct rotation applied, so pure offset
-            pose_offset_cam_pose[:3,3] = pose_offset[:3,3] + cam_pose[:3,3]
-            # Concatenate the two rotations such that cam_pose is applied first, then pose_offset
-            pose_offset_cam_pose[:3,:3] = pose_offset[:3,:3] @ cam_pose[:3,:3]
-            P = K @ pose_offset_cam_pose
+            #TODO: Try calc p1.inv*p2*cam_pose?
+            P = np.identity(4)
+            P[:3,:] = cam_pose.copy()
+            inv_cam_pose = np.linalg.inv(P)
+            P_off = np.identity(4)
+            P_off[:3,:] = pose_offset.copy()
+            #T = inv_cam_pose @ P_off
+            T = P_off @ P
+            #print(f'Est. pose with offset: {T}')
+            #print(f'Optimized pose: {self.cam_pose_from_optimizer}')
+            P = K @ T[:3,:]
             
         # Project to 2D
         img_pts_offset = np.zeros((6,2))
@@ -275,7 +279,7 @@ class SkeletalTurbineModel:
             # Perspective transform
             point = P @ point
             # Re-scale homogenous point
-            if point[2] != 0:
+            if point[2] > 0:
                 point /= point[2]
             img_pts_offset[i,:] = point[:2]
         # Show results
@@ -311,7 +315,7 @@ class SkeletalTurbineModel:
                 # Perspective transform
                 point = P @ point
                 # Re-scale homogenous point
-                if point[2] != 0:
+                if point[2] > 0:
                     point /= point[2]
                 line_divided_2d.append(point[:2])
             lines_divided_2d.append(line_divided_2d)

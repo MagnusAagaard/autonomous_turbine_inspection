@@ -45,7 +45,11 @@ class PoseEstimator:
         self.stm = None
         self.trigger_save = False
         #TODO: Add this as a launch parameter
-        self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run3/model_best_epoch704.pt')
+        #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run3/model_best_epoch704.pt')
+        #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run4/model_best.pt')
+        #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run10/checkpoint_800.pt', version='v1e')
+        #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run11/model_best.pt', version='v1e')
+        self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run13/model_best.pt')
         #TODO: Add this as a launch parameter
         self.render = Renderer(tower='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_tower.stl', 
                                wings='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
@@ -144,19 +148,27 @@ class PoseEstimator:
         if self.est_pose_offset is None:
             return
         pose = Pose()
-        offset = np.linalg.inv(utils.get_rotation_matrix_from_world_to_camera_frame()) @ self.est_pose_offset
+        #offset2 = np.linalg.inv(utils.get_rotation_matrix_from_world_to_camera_frame()) @ self.est_pose_offset
+        #P = np.identity(4)
+        #P[:3,:] = self.est_pose_offset.copy()
+        #offset = np.linalg.inv(P)
+        # Offset is in world frame coords
+        offset = self.est_pose_offset.copy()
         print(f'published trans: {offset[:3,3]}')
-        pose.position.x = -offset[0,3]
-        pose.position.y = -offset[1,3]
-        pose.position.z = -offset[2,3]
+        pose.position.x = offset[0,3]
+        pose.position.y = offset[1,3]
+        pose.position.z = offset[2,3]
         M = np.identity(4)
-        M[:3, :3] = self.est_pose_offset[:3,:3]
+        M[:3, :3] = offset[:3,:3]
         q = utils.quaternion_from_matrix(M)
         # q[0] = -q.y(), q[1] = -q.z(), q[2] = q.x()
-        # and we want negative offset
-        pose.orientation.x = -q[2]
-        pose.orientation.y = q[0]
-        pose.orientation.z = q[1]
+        #pose.orientation.x = -q[2]
+        #pose.orientation.y = q[0]
+        #pose.orientation.z = q[1]
+        #pose.orientation.w = q[3]
+        pose.orientation.x = q[0]
+        pose.orientation.y = q[1]
+        pose.orientation.z = q[2]
         pose.orientation.w = q[3]
         self.pose_offset_pub.publish(pose)
         
@@ -179,6 +191,7 @@ class PoseEstimator:
             self.img = clean_img.copy()
             if self.stm:
                 R,t = utils.get_camera_pose_from_pose_msg(self.pose)
+                #TODO: Try to get everything in world frame again??
                 cam_pose = np.column_stack((R,t))
                 
                 # pixels = known_width*focal_length/D'
@@ -210,7 +223,8 @@ class PoseEstimator:
                     # Use current point estimate from optimizer?
                     #self.stm.update_point_model_from_optimizer(self.optimizer.points[:6])
                     # Use current pose estimate offset from optimzier
-                    self.est_pose_offset = self.optimizer.get_relative_pose_offset()[:3,:]
+                    #self.est_pose_offset = self.optimizer.get_relative_pose_offset()[:3,:]
+                    self.est_pose_offset = self.optimizer.get_relative_pose_offset_new()[:3,:]
                     self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
                     self.last_optimization_time = rospy.Time.now()
                     self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
@@ -240,11 +254,14 @@ class PoseEstimator:
         '''
         scaled_search_radius = np.ceil(0.54*search_radius).astype('int')   # As scale factor is 0.54 when downscaling
         scaled_search_dist = np.ceil(0.54*search_dist).astype('int')   # As scale factor is 0.54 when downscaling
+        #scaled_search_radius = np.ceil(search_radius).astype('int')
+        #scaled_search_dist = np.ceil(search_dist).astype('int')
         # Wing tips
         new_kps = []
         for pt in kps[:3]:
             pt = self.inferencer.downscale_pt(pt, self.img_shape)
-            new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,3], pt, scaled_search_radius, self.img_shape, upscale=True))
+            #new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,3], pt, scaled_search_radius, self.img_shape, upscale=True))
+            new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,0], pt, scaled_search_radius, self.img_shape, upscale=True))
         # Rest
         ##### REMEMBER THIS #####
         new_kps.append([-1,-1])
@@ -252,7 +269,8 @@ class PoseEstimator:
         ##### Not using top and wing center kps #####
         for i, pt in enumerate(kps[5:]):
             pt = self.inferencer.downscale_pt(pt, self.img_shape)
-            new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,4+i+2], pt, scaled_search_radius, self.img_shape, upscale=True))
+            #new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,4+i+2], pt, scaled_search_radius, self.img_shape, upscale=True))
+            new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,1+i+2], pt, scaled_search_radius, self.img_shape, upscale=True))
         #for line in lines_divided_2d:
         #   for pt in line:
         #       new_kps.append([int(pt[0]), int(pt[1])])
@@ -269,7 +287,8 @@ class PoseEstimator:
             line_pts = []
             for pt in line:
                 pt = self.inferencer.downscale_pt(pt, self.img_shape)
-                line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,7+i], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
+                #line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,7+i], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
+                line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,4+i], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
             if use_line_fit:
                 l1 = self.inferencer.fit_line_to_pts(line_pts)
             else:
@@ -326,7 +345,8 @@ class PoseEstimator:
             line_pts = []
             for pt in line:
                 pt = self.inferencer.downscale_pt(pt, self.img_shape)
-                line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,9], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
+                #line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,9], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
+                line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,6], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
             if use_line_fit:
                 l1 = self.inferencer.fit_line_to_pts(line_pts)
             else:

@@ -219,17 +219,53 @@ class PoseGraphOptimization:
         # Relative transformation between pose 1 and 2 in world frame
         Tij = pose1.inverse()*pose2
         Rex = utils.get_rotation_matrix_from_world_to_camera_frame()
+        print(f'p1t: {t1}')
+        print(f'p2t: {t2}')
+        print(f'p1R: {R1}')
+        print(f'p2R: {R2}')
+        print(f't before: {Tij.translation()}')
         # Translation in camera frame
         t = Rex @ Tij.translation()
+        #t = Tij.translation()
+        #print(f't after: {t}')
         # Rotation in camera frame
+        print(f'Rotation M: {utils.quarternion_to_rotation_matrix_g2o(Tij.rotation())}')
         R = utils.quarternion_to_rotation_matrix_g2o_cam_frame(Tij.rotation())
+        print(f'Rotation M2: {R}')
+        #R = utils.quarternion_to_rotation_matrix_g2o(Tij.rotation())
+        # Difference between rotations @ translation
+        R_diff = R @ np.linalg.inv(utils.quarternion_to_rotation_matrix_g2o(Tij.rotation()))
+        #t = Rex @ R @ Tij.translation()
+        print(f'Rotation_diff: {R_diff}')
+        #t = R_diff @ Tij.translation()
         pose = g2o.SE3Quat(R, t)
+        
         return pose
+    
+    def get_relative_pose_new(self, R1, t1, R2, t2):
+        '''
+        Calculates relative pose between two camera poses
+        Pose 1 in camera frame
+        Pose 2 in camera frame
+        Pose 2 wrt. pose 1 = T_ij =  T_1^-1*T2
+        Pose 2 wrt. pose 1 in camera frame --> Tij_cam = inv(Tij_world)
+        --> Tij_cam = inv(inv(T1_world)*T2_world) --> Tij_cam = inv(inv(inv(T1_cam))*inv(T2_cam))
+        --> inv(inv(T)) = T --> Tij_cam = inv(P1_cam*inv(P2_cam))
+        --> % inv(T1*T2^-1) = T2*inv(T1) --> Tij_cam = P2_cam*inv(P1_cam)
+        '''
+        pose1 = g2o.SE3Quat(R1, t1)
+        pose2 = g2o.SE3Quat(R2, t2)
+        # Relative transformation between pose 1 and 2 in cam_frame 
+        Tij = pose2*pose1.inverse()
+        print(f't before: {Tij.translation()}')
+        print(f'Rotation M: {utils.quarternion_to_rotation_matrix_g2o(Tij.rotation())}')
+        return Tij
     
     def calculate_relative_pose(self, cam1, cam2):
         pose1_R, pose1_t = cam1.original_pose()
         pose2_R, pose2_t = cam2.original_pose()
-        cam1.relative_pose = self.get_relative_pose(pose1_R, pose1_t, pose2_R, pose2_t)
+        #cam1.relative_pose = self.get_relative_pose(pose1_R, pose1_t, pose2_R, pose2_t)
+        cam1.relative_pose = self.get_relative_pose_new(pose1_R, pose1_t, pose2_R, pose2_t)
         #print('Relative pose SE3Quat: {}'.format(cam1.relative_pose.to_vector()))
         #print('Relative orientation euler: {}'.format(utils.euler_from_matrix(utils.quarternion_to_rotation_matrix_g2o(cam1.relative_pose.rotation()))))
         #print('Relative orientation R: {}'.format(utils.quarternion_to_rotation_matrix_g2o(cam1.relative_pose.rotation())))
@@ -239,6 +275,7 @@ class PoseGraphOptimization:
         #print('Cam 1 pose : {}'.format(cam1.original_pose()))
         #print('Cam 2 pose : {}'.format(cam2.original_pose()))
         
+        
     def check_relative_pose(self, cam1, cam2):
         pose1_R, pose1_t = cam1.original_pose()
         pose2_R, pose2_t = cam2.original_pose()
@@ -246,10 +283,33 @@ class PoseGraphOptimization:
         p2 = np.identity(4)
         p1[:3,:3] = pose1_R
         p1[:3,3] = pose1_t
+        p1 = np.linalg.inv(p1)
         p2[:3,:3] = pose2_R
         p2[:3,3] = pose2_t
+        p2 = np.linalg.inv(p2)
         Tij = np.linalg.inv(p1) @ p2
         print(Tij)
+        Rex = utils.get_rotation_matrix_from_world_to_camera_frame()
+        Tij[:3,3] = Rex @ Tij[:3,3]
+        Tij[:3,:3] = Rex @ Tij[:3,:3]
+        print(Tij)
+        
+    def get_relative_pose_offset_new(self):
+        '''
+        Calculates relative pose offset between optimized pose and original pose.
+        Uses last camera as that is the current best estimate.
+        Tij_world = inv(P1world) * P2world
+        '''
+        opti_R = self.cameras[-1].R
+        opti_t = self.cameras[-1].t
+        ori_R, ori_t = self.cameras[-1].original_pose()
+        # Get offset as SE3Quat
+        offset = self.get_relative_pose_new(ori_R, ori_t, opti_R, opti_t)
+        ret = np.identity(4)
+        ret[:3,:3] = utils.quarternion_to_rotation_matrix_g2o(offset.rotation())
+        ret[:3,3] = offset.translation()
+        print(f'Offset estimate: {ret}')
+        return ret
         
     def get_relative_pose_offset(self):
         '''
@@ -259,28 +319,48 @@ class PoseGraphOptimization:
         opti_R = self.cameras[-1].R
         opti_t = self.cameras[-1].t
         ori_R, ori_t = self.cameras[-1].original_pose()
+        # Invert poses to world frame
+        P1 = np.identity(4)
+        P1[:3,:3] = ori_R
+        P1[:3,3] = ori_t
+        P1 = np.linalg.inv(P1)
+        P2 = np.identity(4)
+        P2[:3,:3] = opti_R
+        P2[:3,3] = opti_t
+        P2 = np.linalg.inv(P2)
         # POSES OF CAMS: right is x, down is y, front is z - negative values corresponds to positive axis movement..
-        #opti_t = np.copy(ori_t) + np.array([1,0,0])
-        #opti_R = np.copy(ori_R)
         # Get transform from pose 1 --> pose 2 (ie. offset)
-        pose1 = g2o.SE3Quat(ori_R, ori_t)
-        pose2 = g2o.SE3Quat(opti_R, opti_t)
+        #pose1 = g2o.SE3Quat(ori_R, ori_t)
+        pose1 = g2o.SE3Quat(P1[:3,:3], P1[:3,3])
+        #pose2 = g2o.SE3Quat(opti_R, opti_t)
+        pose2 = g2o.SE3Quat(P2[:3,:3], P2[:3,3])
         # Relative transformation between pose 1 and 2 in world frame
         Tij = pose1.inverse()*pose2
-        Rex = utils.get_rotation_matrix_from_world_to_camera_frame()
+        #Rex = utils.get_rotation_matrix_from_world_to_camera_frame()
         # Translation in camera frame
-        t = Rex @ Tij.translation()
+        #t = Rex @ Tij.translation()
+        t = Tij.translation()
         # Rotation in camera frame
-        R = utils.quarternion_to_rotation_matrix_g2o_cam_frame(Tij.rotation())
+        #R = utils.quarternion_to_rotation_matrix_g2o_cam_frame(Tij.rotation())
+        R = utils.quarternion_to_rotation_matrix_g2o(Tij.rotation())
         # Create pose to make sure that rotation is normalized
         pose = g2o.SE3Quat(R, t)
         ret = np.eye(4)
         ret[:3, :3] = utils.quarternion_to_rotation_matrix_g2o(pose.rotation())
         ret[:3, 3] = pose.translation()
-        print('Estimated pose offset:')
-        print(f'Translation: {ret[:3,3]}')
-        print(f'Rotation: {utils.euler_from_matrix(ret[:3,:3])}')
-        print(f'ret {ret}')
+        #print(f'ori t: {ori_t}')
+        #print(f'opti t: {opti_t}')
+        #print(f'ori R: {ori_R}')
+        #print(f'opti R: {opti_R}')
+        #print('inverse')
+        #print(f'ori t: {P1[:3,3]}')
+        #print(f'ori R: {P1[:3,:3]}')
+        #print(f'opti t: {P2[:3,3]}')
+        #print(f'opti R: {P2[:3,:3]}')
+        #print('Estimated pose offset:')
+        #print(f'Translation: {ret[:3,3]}')
+        #print(f'Rotation: {utils.euler_from_matrix(ret[:3,:3])}')
+        #print(f'ret {ret}')
         return ret
         
     def optimize(self):
@@ -296,7 +376,7 @@ class PoseGraphOptimization:
         cam.set_id(0)
         optimizer.add_parameter(cam)
         #self.freeze_nonlast_cameras(number_of_non_fixed_cameras=20)
-        self.limit_number_of_cameras(limit=50)
+        #self.limit_number_of_cameras(limit=50)
         #self.unfreeze_cameras(number_of_fixed_cameras=0)
         
         #print(f'Obs before reprojection error adjustment: {len(self.observations)}')
@@ -339,7 +419,7 @@ class PoseGraphOptimization:
             edge.set_vertex(1, camera_vertices[observation.camera_id]) 
             # Image coordinate
             edge.set_measurement(observation.image_coordinates)
-            edge.set_information(np.identity(2))
+            edge.set_information(0.1*np.identity(2))
             # 0.01 and 0.01 to weight line correspondences lower than points
             #if observation.point_id >= 6:
             #    edge.set_information(np.array([[0.01, 0.0],[0.0, 0.01]]))
@@ -370,6 +450,9 @@ class PoseGraphOptimization:
             #information[0,0] = 0.5
             #information[1,1] = 0.5
             #information[2,2] = 0.5
+            #information[3,3] = 10
+            #information[4,4] = 10
+            #information[5,5] = 10
             edge.set_information(information)
             edge.set_robust_kernel(g2o.RobustKernelHuber())
             edge.set_parameter_id(0,0)
@@ -381,7 +464,7 @@ class PoseGraphOptimization:
 
         print('Performing full BA:')
         optimizer.initialize_optimization()
-        optimizer.set_verbose(False)
+        optimizer.set_verbose(True)
         optimizer.optimize(20)
         #optimizer.save("test.g2o")
 
