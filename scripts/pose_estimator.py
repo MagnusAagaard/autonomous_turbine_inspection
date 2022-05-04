@@ -46,10 +46,10 @@ class PoseEstimator:
         self.trigger_save = False
         #TODO: Add this as a launch parameter
         #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run3/model_best_epoch704.pt', version='v1old')
-        self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run4/model_best.pt', version='v1old')
+        #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run4/model_best.pt', version='v1old')
         #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run10/checkpoint_800.pt', version='v1e')
         #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run11/model_best.pt', version='v1e')
-        #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run13/model_best.pt')
+        self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run13/model_best.pt')
         #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run14/model_best.pt', version='v1c')
         #TODO: Add this as a launch parameter
         self.render = Renderer(tower='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_tower.stl', 
@@ -105,6 +105,10 @@ class PoseEstimator:
         roll = np.deg2rad(60 + best_estimate[3])
         yaw = np.pi + np.deg2rad(best_estimate[4])
         print(f'Estimates: ({x},{y},{z},{roll},{yaw})')
+        x = 110
+        y = 0
+        roll = np.deg2rad(60 + 30)
+        yaw = np.pi + np.deg2rad(45)
         self.stm = SkeletalTurbineModel(c=(x,y), omega=yaw, phi=roll)
         self._publish_stm_params([x,y,yaw,roll])
         self.init_optimizer(img, cam_pose)
@@ -149,28 +153,34 @@ class PoseEstimator:
         if self.est_pose_offset is None:
             return
         pose = Pose()
-        #offset2 = np.linalg.inv(utils.get_rotation_matrix_from_world_to_camera_frame()) @ self.est_pose_offset
         #P = np.identity(4)
         #P[:3,:] = self.est_pose_offset.copy()
         #offset = np.linalg.inv(P)
-        # Offset is in world frame coords
+
+        # Offset is in cam frame coords
         offset = self.est_pose_offset.copy()
-        print(f'published trans: {offset[:3,3]}')
-        pose.position.x = offset[0,3]
-        pose.position.y = offset[1,3]
-        pose.position.z = offset[2,3]
+        
+        # World x = cam_z, y = -cam_x, z = -cam_y
+        # Cam coords have "positive movement" as negative values, so reversed..
+        pose.position.x = -offset[2,3]
+        pose.position.y = offset[0,3]
+        pose.position.z = offset[1,3]
+        #pose.position.x = offset[0,3]
+        #pose.position.y = offset[1,3]
+        #pose.position.z = offset[2,3]
         M = np.identity(4)
         M[:3, :3] = offset[:3,:3]
         q = utils.quaternion_from_matrix(M)
         # q[0] = -q.y(), q[1] = -q.z(), q[2] = q.x()
-        #pose.orientation.x = -q[2]
-        #pose.orientation.y = q[0]
-        #pose.orientation.z = q[1]
-        #pose.orientation.w = q[3]
-        pose.orientation.x = q[0]
-        pose.orientation.y = q[1]
-        pose.orientation.z = q[2]
+        pose.orientation.x = -q[2]
+        pose.orientation.y = q[0]
+        pose.orientation.z = q[1]
         pose.orientation.w = q[3]
+        #pose.orientation.x = q[0]
+        #pose.orientation.y = q[1]
+        #pose.orientation.z = q[2]
+        #pose.orientation.w = q[3]
+        print(f'published trans pose: {pose}')
         self.pose_offset_pub.publish(pose)
         
     def __trigger_cb(self, msg):
@@ -225,7 +235,7 @@ class PoseEstimator:
                     #self.stm.update_point_model_from_optimizer(self.optimizer.points[:6])
                     # Use current pose estimate offset from optimzier
                     #self.est_pose_offset = self.optimizer.get_relative_pose_offset()[:3,:]
-                    self.est_pose_offset = self.optimizer.get_relative_pose_offset_new()[:3,:]
+                    self.est_pose_offset = self.optimizer.get_relative_pose_offset_new()
                     self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
                     self.last_optimization_time = rospy.Time.now()
                     self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)

@@ -146,7 +146,7 @@ class SkeletalTurbineModel:
         step_sizes = [1, 1, 1]
         tower_step = int(self.h / step_sizes[0])
         top_step = int(self.r / step_sizes[1])
-        blade_step = int(self.b / step_sizes[2])
+        blade_step = int((self.b - step_sizes[2]) / step_sizes[2])
         return [tower_step, top_step, blade_step, blade_step, blade_step]
         
         
@@ -258,13 +258,14 @@ class SkeletalTurbineModel:
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[5,0]), int(img_pts[5,1])), (0,255,0), 1)
         
         if pose_offset is not None:
-            #TODO: Try calc p1.inv*p2*cam_pose?
             P = np.identity(4)
             P[:3,:] = cam_pose.copy()
             inv_cam_pose = np.linalg.inv(P)
-            P_off = np.identity(4)
-            P_off[:3,:] = pose_offset.copy()
-            #T = inv_cam_pose @ P_off
+            # Get offset in cam frame
+            #P_off = np.linalg.inv(pose_offset)
+            # Offset in cam frame 
+            P_off = pose_offset.copy()
+            # Apply offset to cam pose: P_off @ inv(cam_pose)
             T = P_off @ P
             #print(f'Est. pose with offset: {T}')
             #print(f'Optimized pose: {self.cam_pose_from_optimizer}')
@@ -300,7 +301,7 @@ class SkeletalTurbineModel:
         #TEST: Changed such that more point correspondences (1m seperated along wings), but still 5m wps
         #NOTE: !
         # IF OLD MODEL NEEDS TO BE USED FOR MODEL ESTIMATION (LINES AND PTS LOCATIONS)
-        # CHANGE FROM img_pts to img_pts_init
+        # CHANGE FROM img_pts_offset to img_pts_init
         # AND UNCOMMENT THIS P AGAIN
         P = K @ cam_pose # NOW USES OLD MODEL AND NOT ESTIMATED FOR LINES AND PTS
         for _pt in img_pts_init:

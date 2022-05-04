@@ -298,16 +298,18 @@ class PoseGraphOptimization:
         '''
         Calculates relative pose offset between optimized pose and original pose.
         Uses last camera as that is the current best estimate.
-        Tij_world = inv(P1world) * P2world
+        Tij_world = inv(P1world) * P2world --> Tij_world = inv(P2cam*inv(P1cam))
         '''
         opti_R = self.cameras[-1].R
         opti_t = self.cameras[-1].t
         ori_R, ori_t = self.cameras[-1].original_pose()
-        # Get offset as SE3Quat
+        # Get offset as SE3Quat in cam frame
         offset = self.get_relative_pose_new(ori_R, ori_t, opti_R, opti_t)
         ret = np.identity(4)
         ret[:3,:3] = utils.quarternion_to_rotation_matrix_g2o(offset.rotation())
         ret[:3,3] = offset.translation()
+        # Get in world frame
+        #ret = np.linalg.inv(ret)
         print(f'Offset estimate: {ret}')
         return ret
         

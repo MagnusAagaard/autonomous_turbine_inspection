@@ -150,15 +150,28 @@ class DroneControl:
             t = np.array([wp[0], wp[1], wp[2]], dtype=np.float64)
             R = utils.quarternion_to_rotation_matrix(pose.pose.orientation)
             M = np.identity(4)
-            M[:3, :3] = R_off @ R
+            Pbf = np.identity(4)
+            Pbf[:3,:3] = R.copy()
+            Pbf[:3,3] = t.copy()
+            Poff = np.identity(4)
+            Poff[:3,:3] = offset[:3,:3].copy()
+            Poff[:3,3] = offset[:3,3].copy()
+            # Add the two poses
+            #new_P = Pbf @ Poff
+            # "subtract" the two poses, ie. T2 "-" T1
+            #new_P = np.linalg.inv(Poff) @ Pbf
+            # Apply offset like addition, but opposite: P = Pbf @ Poff --> P = Pbf @ inv(Poff)
+            new_P = Pbf @ np.linalg.inv(Poff)
+            # In cam frame we do P_off @ inv(P)
+            #print(f'Pose before offset: {Pbf}')
+            #print(f'Pose after offset: {new_P}')
+            #print(f'Offset: {Poff}')
+            M[:3, :3] = new_P[:3,:3]
             new_q = utils.quaternion_from_matrix(M)
-            # offset is negative values
-            #TODO: Figure out how to calculate offset correctly (negative/positive etc.)
             #TODO: Figure out if turbine base parameter should be offset instead?
-            new_t = t_off + t
-            pose.pose.position.x = new_t[0]
-            pose.pose.position.y = new_t[1]
-            pose.pose.position.z = new_t[2]
+            pose.pose.position.x = new_P[0,3]
+            pose.pose.position.y = new_P[1,3]
+            pose.pose.position.z = new_P[2,3]
             pose.pose.orientation.x = new_q[0]
             pose.pose.orientation.y = new_q[1]
             pose.pose.orientation.z = new_q[2]
@@ -326,8 +339,8 @@ class DroneControl:
                     self.pause_pose_estimator()
                     #TODO: Calculate offset in pose and correct wp with pose offset
                     # Fly to waypoint and wait 2 sec.
-                    #current_wp = self.create_pose_from_waypoint(self.wps[line_it][wp_it], offset=self.est_offset)
-                    current_wp = self.create_pose_from_waypoint(self.wps[line_it][wp_it], offset=None)
+                    current_wp = self.create_pose_from_waypoint(self.wps[line_it][wp_it], offset=self.est_offset)
+                    #current_wp = self.create_pose_from_waypoint(self.wps[line_it][wp_it], offset=None)
                     if line_it % 3 == 1 and len(self.wps[line_it]) - line_it > 1:
                         self.fly_to_wp(current_wp)
                     else:
