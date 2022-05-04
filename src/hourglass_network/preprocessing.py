@@ -134,15 +134,42 @@ def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_
         for i, kp in enumerate(kps):
             kp[0] = round(pts[0,i])
             kp[1] = round(pts[1,i])
-        # Now translate to center around kps.. + some deviation
+        # Now translate to center around kps.. + some deviation such that features always in view
+        min_x = 1000
+        min_y = 1000
+        max_x = 0
+        max_y = 0
+        for x in xs:
+            if x < min_x:
+                min_x = x
+            if x > max_x:
+                max_x = x
+        for y in ys:
+            if y < min_y:
+                min_y = y
+            if y > max_y:
+                max_y = y
+        if min_y < 0:
+            min_y = 0
+        if min_x < 0:
+            min_x = 0
+        if max_x > img.shape[1]:
+            max_x = img.shape[1]
+        if max_y > img.shape[0]:
+            max_y = img.shape[0]
+        trans_range_x = max_x - min_x
+        trans_range_y = max_y - min_y
+        xc = int((max_x + min_x)/2 + (random_vals[2] * trans_range_x - trans_range_x/2))
+        yc = int((max_y + min_y)/2 + (random_vals[3] * trans_range_y - trans_range_y/2))
+        
         #trans_range_x = int(img.shape[1]*0.1)
         #trans_range_y = int(img.shape[0]*0.1)
-        trans_range_x = int(img.shape[1])
-        trans_range_y = int(img.shape[0])
+        #trans_range_x = int(img.shape[1])
+        #trans_range_y = int(img.shape[0])
         #xc = int(sum([kp[0] for kp in kps[3:]])/3) #+ (random_vals[2] * trans_range_x - trans_range_x/2))
         #yc = int(sum([kp[1] for kp in kps[3:]])/3) #+ (random_vals[3] * trans_range_y - trans_range_y/2))
-        xc = int(kps[1][0] + (random_vals[2] * trans_range_x - trans_range_x/2))
-        yc = int(kps[1][1] + (random_vals[3] * trans_range_y - trans_range_y/2))
+        #xc = int(kps[1][0] + (random_vals[2] * trans_range_x - trans_range_x/2))
+        #yc = int(kps[1][1] + (random_vals[3] * trans_range_y - trans_range_y/2))
         if xc < 0:
             xc = 0
         if yc < 0:
@@ -152,14 +179,14 @@ def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_
         if yc >= img.shape[0]:
             yc = img.shape[0] - 1
         #NOTE: change to crop size
-        if xc-480/2 < 0:
-            xc += 480/2 - xc
-        elif xc+480/2 > img.shape[1]:
-            xc -= xc+480/2 - img.shape[1]
-        if yc-480/2 < 0:
-            yc += 480/2 - yc
-        elif yc+480/2 > img.shape[0]:
-            yc -= yc+480/2 - img.shape[0]
+        if xc-256/2 < 0:
+            xc += 256/2 - xc
+        elif xc+256/2 > img.shape[1]:
+            xc -= xc+256/2 - img.shape[1]
+        if yc-256/2 < 0:
+            yc += 256/2 - yc
+        elif yc+256/2 > img.shape[0]:
+            yc -= yc+256/2 - img.shape[0]
         trans_x = xc - img.shape[1]/2
         trans_y = yc - img.shape[0]/2
         # Redo transform
@@ -182,10 +209,10 @@ def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_
     #show_keypoints_on_img(kps, img, show=True)
     kernel_size = 0    # From OpenCV formula. If set at 0, the kernel size is automatically calculated as 31 with sigma=5 based on sigma and vice versa if sigma = 0
     # Random affine transform applied to input_img/prior (10 pixels max)
-    sx = 10./img.shape[1]
-    sy = 10./img.shape[0]
-    #sx = 0.1
-    #sy = 0.1
+    #sx = 10./img.shape[1]
+    #sy = 10./img.shape[0]
+    sx = 0.1
+    sy = 0.1
     transform = transforms.RandomAffine(degrees=2, translate=(sx, sy))
     
     # Data variables
