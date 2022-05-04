@@ -289,9 +289,10 @@ class ConvEncoderDecoderCor(nn.Module):
         return x
     
 class ConvEncoderDecoder(nn.Module):
-    def __init__(self, inp_dim, extra_layer=False):
+    def __init__(self, inp_dim, extra_layer=False, old_version=False):
         super(ConvEncoderDecoder, self).__init__()
         self.extra_layer = extra_layer
+        self.old_version = old_version
         self.inp_dim = inp_dim
         # Common functions
         self.relu = nn.ReLU()
@@ -333,8 +334,10 @@ class ConvEncoderDecoder(nn.Module):
         self.up4_bn = nn.BatchNorm2d(64)
         
         # Output
-        #self.out_conv = nn.Conv2d(64, inp_dim, kernel_size=1, stride=1, padding=0)
-        self.out_conv = nn.Conv2d(64, 7, kernel_size=1, stride=1, padding=0)
+        if self.old_version:
+            self.out_conv = nn.Conv2d(64, inp_dim, kernel_size=1, stride=1, padding=0)
+        else:
+            self.out_conv = nn.Conv2d(64, 7, kernel_size=1, stride=1, padding=0)
         
         
     def forward(self, x):

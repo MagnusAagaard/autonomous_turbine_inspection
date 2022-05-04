@@ -45,11 +45,12 @@ class PoseEstimator:
         self.stm = None
         self.trigger_save = False
         #TODO: Add this as a launch parameter
-        #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run3/model_best_epoch704.pt')
-        #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run4/model_best.pt')
+        #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run3/model_best_epoch704.pt', version='v1old')
+        self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run4/model_best.pt', version='v1old')
         #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run10/checkpoint_800.pt', version='v1e')
         #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run11/model_best.pt', version='v1e')
-        self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run13/model_best.pt')
+        #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run13/model_best.pt')
+        #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run14/model_best.pt', version='v1c')
         #TODO: Add this as a launch parameter
         self.render = Renderer(tower='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_tower.stl', 
                                wings='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
@@ -260,8 +261,10 @@ class PoseEstimator:
         new_kps = []
         for pt in kps[:3]:
             pt = self.inferencer.downscale_pt(pt, self.img_shape)
-            #new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,3], pt, scaled_search_radius, self.img_shape, upscale=True))
-            new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,0], pt, scaled_search_radius, self.img_shape, upscale=True))
+            if self.inferencer.version == 'v1old':
+                new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,3], pt, scaled_search_radius, self.img_shape, upscale=True))
+            else:
+                new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,0], pt, scaled_search_radius, self.img_shape, upscale=True))
         # Rest
         ##### REMEMBER THIS #####
         new_kps.append([-1,-1])
@@ -269,8 +272,10 @@ class PoseEstimator:
         ##### Not using top and wing center kps #####
         for i, pt in enumerate(kps[5:]):
             pt = self.inferencer.downscale_pt(pt, self.img_shape)
-            #new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,4+i+2], pt, scaled_search_radius, self.img_shape, upscale=True))
-            new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,1+i+2], pt, scaled_search_radius, self.img_shape, upscale=True))
+            if self.inferencer.version == 'v1old':
+                new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,4+i+2], pt, scaled_search_radius, self.img_shape, upscale=True))
+            else:
+                new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,1+i+2], pt, scaled_search_radius, self.img_shape, upscale=True))
         #for line in lines_divided_2d:
         #   for pt in line:
         #       new_kps.append([int(pt[0]), int(pt[1])])
@@ -287,8 +292,10 @@ class PoseEstimator:
             line_pts = []
             for pt in line:
                 pt = self.inferencer.downscale_pt(pt, self.img_shape)
-                #line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,7+i], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
-                line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,4+i], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
+                if self.inferencer.version == 'v1old':
+                    line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,7+i], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
+                else:
+                    line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,4+i], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
             if use_line_fit:
                 l1 = self.inferencer.fit_line_to_pts(line_pts)
             else:
@@ -345,8 +352,10 @@ class PoseEstimator:
             line_pts = []
             for pt in line:
                 pt = self.inferencer.downscale_pt(pt, self.img_shape)
-                #line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,9], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
-                line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,6], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
+                if self.inferencer.version == 'v1old':
+                    line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,9], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
+                else:
+                    line_pts.append(self.inferencer.get_line_from_heatmap(output[:,:,6], pt, unit_v_perp, scaled_search_dist, self.img_shape, upscale=True))
             if use_line_fit:
                 l1 = self.inferencer.fit_line_to_pts(line_pts)
             else:

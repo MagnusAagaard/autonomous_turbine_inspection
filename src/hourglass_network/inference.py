@@ -16,12 +16,15 @@ class Inference:
         self.pt_threshold = 0.1 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f'Device available for inference: {self.device}')
+        self.version = version
         if version == 'v1':
             self.model = ConvEncoderDecoder(10, extra_layer=False)
         elif version == 'v1e':
             self.model = ConvEncoderDecoder(10, extra_layer=True)
         elif version == 'v1c':
             self.model = ConvEncoderDecoderCor(10, extra_layer=False)
+        elif version == 'v1old':
+            self.model = ConvEncoderDecoder(10, extra_layer=False, old_version=True)
         elif version == 'v2':
             self.model = ConvEncoderDecoderV2(10)
         else:
@@ -43,7 +46,7 @@ class Inference:
         test_img = cv2.imread(f'./src/hourglass_network/data/test_data/{img_name}')
         print('inference\t\t', timeit.timeit(lambda: self.forward(test_img, kps), number=300) / 300)
         
-    def run_test(self, annotation_idx):
+    def run_test(self, annotation_idx, old_version=False):
         # Get annotations and load image + keypoints
         annotations = preprocessing.get_annotations('./src/hourglass_network/data/annotations_test.json')
         img_name = preprocessing.get_img_name(annotations[annotation_idx])
@@ -278,9 +281,9 @@ def main():
     # Get input image
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run5/model_best_epoch744.pt', version='v2')
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run11/model_best.pt', version='v1e')
-    #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run3/model_best_epoch704.pt')
+    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run3/model_best_epoch704.pt', version='v1old')
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run13/model_best.pt')
-    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run15/model_best.pt', version='v1c')
+    #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run15/model_best.pt', version='v1c')
     annotation_idx = 0
     #inferencer.test_timing(annotation_idx)
     inferencer.run_test(annotation_idx)
