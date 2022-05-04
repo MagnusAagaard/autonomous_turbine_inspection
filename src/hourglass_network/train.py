@@ -36,7 +36,7 @@ class Trainer:
         self.save_interval = args.interval
         self.model_version = args.model
         # TensorBoard writer
-        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_14')
+        self.writer = SummaryWriter(self.base_dir + '/runs/augmentation_experiment_15')
         # Use CUDA if available
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         if self.model_version == 'v1':
