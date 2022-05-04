@@ -7,7 +7,7 @@ import numpy as np
 
 BASE_DIR = './src/hourglass_network'
 
-dataset = WindturbineDataset(f'{BASE_DIR}/data/annotations_125.json', f'{BASE_DIR}/data/all_data', train_transform=Compose([ToTensor(), CenterCrop(480), RandomHorizontalFlip(0.5)]), test_transform=Compose([ToTensor(), Resize(480), CenterCrop(480)]))
+dataset = WindturbineDataset(f'{BASE_DIR}/data/annotations_125.json', f'{BASE_DIR}/data/all_data', train_transform=Compose([ToTensor(), CenterCrop(256), RandomHorizontalFlip(0.5)]), test_transform=Compose([ToTensor(), Resize(256), CenterCrop(256)]))
 train_val_split = int(len(dataset)*0.8)
 train_set, val_set = random_split(dataset, [train_val_split, len(dataset)-train_val_split], generator=torch.Generator().manual_seed(42))
 print(f'Length of train dataset: {len(train_set)} \t Length of val dataset: {len(val_set)}')
