@@ -280,7 +280,7 @@ def main():
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run11/model_best.pt', version='v1e')
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run3/model_best_epoch704.pt')
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run13/model_best.pt')
-    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run14/model_best.pt', version='v1c')
+    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run15/model_best.pt', version='v1c')
     annotation_idx = 0
     #inferencer.test_timing(annotation_idx)
     inferencer.run_test(annotation_idx)
