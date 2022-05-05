@@ -310,7 +310,7 @@ class DroneControl:
         line_it = 0
         # Waypoint iterator (each pt in line)
         wp_it = 0
-        while(STATE != 'TERMINATE'):
+        while(STATE != 'DONE'):
             if STATE == 'INIT':
                 if self.go_to_next_wp:
                     # Pause pose estimator before moving
@@ -356,8 +356,15 @@ class DroneControl:
                         STATE = 'TERMINATE'
                 else:
                     self.publish_wp_and_sleep(current_wp)
+            elif STATE == 'TERMINATE':
+                if self.go_to_next_wp:
+                    self.go_to_next_wp = False
+                    self.start_pose_estimator
+                    STATE = 'DONE'
+                self.publish_wp_and_sleep(current_wp)
+                
         self.pause_pose_estimator()
-        rospy.loginfo('Terminate state reached..')
+        rospy.loginfo('Done state reached..')
         while True:
             self.publish_wp_and_sleep(current_wp)
                 

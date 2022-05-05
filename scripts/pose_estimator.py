@@ -26,6 +26,7 @@ class PoseEstimator:
         # Init
         self.stm = None
         self.img = None
+        self.img_num = 0
         #TODO: Add this as a launch parameter
         self.img_shape = (480, 640)
         # Half a second
@@ -244,7 +245,11 @@ class PoseEstimator:
         
         if self.n_frames_added >= self.n_frames_for_pose_graph:
             self._publish_pose_offset()
+            self.run_optimizer = False
             self.next_wp_pub.publish(Bool(data=True))
+            cv2.imwrite(f'/home/magnus/master_thesis/inspections/{self.img_num}.png', clean_img)
+            cv2.imwrite(f'/home/magnus/master_thesis/inspections/{self.img_num}_poses.png', drone_img)
+            self.img_num += 1
             
         if not self.run_optimizer:
             self.n_frames_added = 0
