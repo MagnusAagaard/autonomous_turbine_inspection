@@ -261,8 +261,6 @@ class SkeletalTurbineModel:
             P = np.identity(4)
             P[:3,:] = cam_pose.copy()
             inv_cam_pose = np.linalg.inv(P)
-            # Get offset in cam frame
-            #P_off = np.linalg.inv(pose_offset)
             # Offset in cam frame 
             P_off = pose_offset.copy()
             # Apply offset to cam pose: P_off @ inv(cam_pose)
@@ -297,8 +295,6 @@ class SkeletalTurbineModel:
             cv2.imshow('Projected point model', img)
             cv2.waitKey(0)
         rst_pts = []
-        #TODO: Need to use estimated offset..? Else there is problems when we have moved
-        #TEST: Changed such that more point correspondences (1m seperated along wings), but still 5m wps
         #NOTE: !
         # IF OLD MODEL NEEDS TO BE USED FOR MODEL ESTIMATION (LINES AND PTS LOCATIONS)
         # CHANGE FROM img_pts_offset to img_pts_init

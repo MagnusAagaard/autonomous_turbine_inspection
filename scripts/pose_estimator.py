@@ -86,7 +86,6 @@ class PoseEstimator:
         img = self.img.copy()
         estimated_dist = 100
         print(f'Estimated distance: {estimated_dist}')
-        #TODO: Fails to create renderer at this point?
         cm = ChamferMatcher(img, self.render)
         # Base estimates: UAV located at tower height.
         # Wind turbine located directly in front in the middle of the image with wings oriented
@@ -106,6 +105,7 @@ class PoseEstimator:
         roll = np.deg2rad(60 + best_estimate[3])
         yaw = np.pi + np.deg2rad(best_estimate[4])
         print(f'Estimates: ({x},{y},{z},{roll},{yaw})')
+        #NOTE: Currently fixed estimate
         x = 110
         y = 0
         roll = np.deg2rad(60 + 30)
@@ -120,10 +120,8 @@ class PoseEstimator:
         '''
         # First pose during STM initialization
         R,t = utils.get_camera_pose_from_pose_msg(init_cam_pose)
-        #cam = Camera(R=R, t=t, camera_id=self.optimizer.increment_id(), fixed=True)
         cam = Camera(R=R, t=t, fixed=True)
         cam = self.optimizer.add_camera(cam)
-        #self.optimizer.cameras.append(cam)
         # Add 3D points and lines
         self.optimizer.add_point_model_to_points(self.stm.point_model)
         self.optimizer.add_line_model_to_points(self.stm.subdivide_lines())
@@ -132,8 +130,8 @@ class PoseEstimator:
         lines_divided_2d.insert(0,points_2d)
         list_of_2d_pts = list(chain.from_iterable(lines_divided_2d))
         self.optimizer.create_observations(list_of_2d_pts, cam.camera_id)
-        #self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
         self.last_optimization_time = rospy.Time.now()
+        # Draw 3D views
         self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
         self.launch_time = rospy.Time.now()
         
@@ -154,21 +152,13 @@ class PoseEstimator:
         if self.est_pose_offset is None:
             return
         pose = Pose()
-        #P = np.identity(4)
-        #P[:3,:] = self.est_pose_offset.copy()
-        #offset = np.linalg.inv(P)
-
         # Offset is in cam frame coords
         offset = self.est_pose_offset.copy()
-        
         # World x = cam_z, y = -cam_x, z = -cam_y
         # Cam coords have "positive movement" as negative values, so reversed..
         pose.position.x = -offset[2,3]
         pose.position.y = offset[0,3]
         pose.position.z = offset[1,3]
-        #pose.position.x = offset[0,3]
-        #pose.position.y = offset[1,3]
-        #pose.position.z = offset[2,3]
         M = np.identity(4)
         M[:3, :3] = offset[:3,:3]
         q = utils.quaternion_from_matrix(M)
@@ -177,10 +167,6 @@ class PoseEstimator:
         pose.orientation.y = q[0]
         pose.orientation.z = q[1]
         pose.orientation.w = q[3]
-        #pose.orientation.x = q[0]
-        #pose.orientation.y = q[1]
-        #pose.orientation.z = q[2]
-        #pose.orientation.w = q[3]
         print(f'published trans pose: {pose}')
         self.pose_offset_pub.publish(pose)
         
@@ -203,7 +189,6 @@ class PoseEstimator:
             self.img = clean_img.copy()
             if self.stm:
                 R,t = utils.get_camera_pose_from_pose_msg(self.pose)
-                #TODO: Try to get everything in world frame again??
                 cam_pose = np.column_stack((R,t))
                 
                 # pixels = known_width*focal_length/D'
@@ -214,28 +199,20 @@ class PoseEstimator:
                 if np.linalg.inv(cam_pose_homo)[0,3] > 50:
                     est_D = 15
                 search_radius = 4*554.92/est_D
-                #TODO: Check actual wing height and use this as search dist (around 2.5m so 3 is good)
+                # Actual wing height is around 2.5m so 3m is good
                 search_dist = 3*554.92/est_D
                 kps, lines_divided_2d = self.stm.project_model_to_image(img=drone_img, K=self.K, cam_pose=cam_pose, search_radius=search_radius, pose_offset=self.est_pose_offset, pose_in_world_frame=False)
                 output = self.inferencer.forward(input_img, kps)
-                #TODO: Make a way to process it all and save a number of point correspondences
-                # checking whether they are present in the current image or not
-                # Also: Add function that removes current observations with high reprojection error to avoid drifting?
-                
                 new_kps = self.process_inference_output(kps, lines_divided_2d, output, search_radius, search_dist, input_img, use_line_fit=False)
+                
                 if (rospy.Time.now() - self.launch_time) > self.time_before_running_optimization and (rospy.Time.now() - self.last_optimization_time) > self.time_between_optimizations:
-                    #cam = Camera(R=R, t=t, camera_id=self.optimizer.increment_id(), fixed=False)
                     cam = Camera(R=R, t=t)
                     cam = self.optimizer.add_camera(cam)
-                    #self.optimizer.cameras.append(cam)
                     self.optimizer.create_observations(new_kps, cam.camera_id)
                     #print(f'Point model: {self.stm.point_model}')
                     self.optimizer.optimize()
                     self.n_frames_added += 1
-                    # Use current point estimate from optimizer?
-                    #self.stm.update_point_model_from_optimizer(self.optimizer.points[:6])
-                    # Use current pose estimate offset from optimzier
-                    #self.est_pose_offset = self.optimizer.get_relative_pose_offset()[:3,:]
+                    # Use current pose estimate offset from optimizer
                     self.est_pose_offset = self.optimizer.get_relative_pose_offset_new()
                     self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
                     self.last_optimization_time = rospy.Time.now()
@@ -247,6 +224,7 @@ class PoseEstimator:
             self._publish_pose_offset()
             self.run_optimizer = False
             self.next_wp_pub.publish(Bool(data=True))
+            # Save images during inspection
             cv2.imwrite(f'/home/magnus/master_thesis/inspections/{self.img_num}.png', clean_img)
             cv2.imwrite(f'/home/magnus/master_thesis/inspections/{self.img_num}_poses.png', drone_img)
             self.img_num += 1
@@ -281,10 +259,9 @@ class PoseEstimator:
             else:
                 new_kps.append(self.inferencer.get_pt_from_heatmap_within_radius(output[:,:,0], pt, scaled_search_radius, self.img_shape, upscale=True))
         # Rest
-        ##### REMEMBER THIS #####
+        #NOTE: Not using top/wing centre pts as they are too bad
         new_kps.append([-1,-1])
         new_kps.append([-1,-1])
-        ##### Not using top and wing center kps #####
         for i, pt in enumerate(kps[5:]):
             pt = self.inferencer.downscale_pt(pt, self.img_shape)
             if self.inferencer.version == 'v1old':
@@ -404,6 +381,7 @@ class PoseEstimator:
             else:
                 for pt in line_pts:
                     new_kps.append([int(pt[0]), int(pt[1])])
+        # Use intersections between blades to estimate wing centre kp
         # if tower_line is not None and top_line is not None:
         #    intersection_pt = np.cross(tower_line, top_line)
         #    if intersection_pt[2] != 0:

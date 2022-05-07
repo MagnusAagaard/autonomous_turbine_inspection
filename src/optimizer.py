@@ -19,12 +19,10 @@ line_colors = {1: np.array([0.0, 0.0, 1.0]),
 class Point:
     def __init__(self, point, point_id = None, color = None):
         self.point = point
-        #self.descriptor = descriptor
         if color is None:
             self.color = point_colors.get(point_id)
         else:
             self.color = color
-        #self.feature_id = feature_id
         self.point_id = point_id
 
     def __repr__(self):
@@ -38,7 +36,6 @@ class Camera:
     def __init__(self, R, t, camera_id = None, fixed = False):
         self.R = R
         self.t = t
-        #self.frame_id = frame_id
         self.camera_id = camera_id
         self.fixed = fixed
         self.original_R = R.copy()
@@ -47,7 +44,6 @@ class Camera:
 
     def pose(self):
         if self.t.shape == (3, 1):
-            # TODO catch this earlier
             self.t = self.t.T[0]
         ret = np.eye(4)
         ret[:3, :3] = self.R
@@ -371,7 +367,6 @@ class PoseGraphOptimization:
         solver = g2o.OptimizationAlgorithmLevenberg(solver)
         optimizer.set_algorithm(solver)
         focal_length = self.camera_matrix[0, 0]
-        #principal_point = (320, 240)
         principal_point = (self.camera_matrix[0, 2], self.camera_matrix[1, 2])
         baseline = 0
         cam = g2o.CameraParameters(focal_length, principal_point, baseline)
@@ -407,6 +402,7 @@ class PoseGraphOptimization:
             # Use positions of 3D points
             point_temp = np.array(point.point, dtype=np.float64)
             vp.set_estimate(point_temp)
+            # Fix points so we only optimize camera poses
             vp.set_fixed(True)
             optimizer.add_vertex(vp)
             point_vertices[point.point_id]= vp
@@ -414,7 +410,6 @@ class PoseGraphOptimization:
         for observation in self.observations:
             # Add edge from first camera to the point
             edge = g2o.EdgeProjectXYZ2UV()
-
             # 3D point
             edge.set_vertex(0, point_vertices[observation.point_id]) 
             # Pose of camera
@@ -429,7 +424,6 @@ class PoseGraphOptimization:
             #    edge.set_information(np.identity(2))
             edge.set_robust_kernel(g2o.RobustKernelHuber())
             #edge.set_robust_kernel(g2o.RobustKernelHuber(np.sqrt(5.991)))
-
             edge.set_parameter_id(0, 0)
             optimizer.add_edge(edge)
         
@@ -440,10 +434,6 @@ class PoseGraphOptimization:
             edge.set_vertex(1, camera_vertices[self.cameras[i+1].camera_id])
             # Measurement should be relative camera movement ie. pose 2 wrt. pose 1 in camera frame
             measurement = camera.relative_pose
-            #print('Relative pose SE3Quat: {}'.format(measurement.to_vector()))
-            #print('Relative orientation: {}'.format(utils.quarternion_to_rotation_matrix_g2o(measurement.rotation())))
-            #print(f'P1: {camera_vertices[camera.camera_id].estimate().to_vector()}')
-            #print(f'P2: {camera_vertices[self.cameras[i+1].camera_id].estimate().to_vector()}')
             edge.set_measurement(measurement)
             # Error in orientation weights high (meaning we are quite sure about our orientation from PX4)
             # Error in translation weights low (more room for translating the pose)
@@ -460,28 +450,21 @@ class PoseGraphOptimization:
             edge.set_parameter_id(0,0)
             optimizer.add_edge(edge)
             
-
         #print('num vertices:', len(optimizer.vertices()))
         #print('num edges:', len(optimizer.edges()))
 
-        print('Performing full BA:')
+        print('Performing full optimization:')
         optimizer.initialize_optimization()
         optimizer.set_verbose(True)
         optimizer.optimize(20)
-        #optimizer.save("test.g2o")
-
+        #optimizer.save("optmization.g2o")
+        
+        # Update poses in graph
         for idx, camera in enumerate(self.cameras):
             t = camera_vertices[camera.camera_id].estimate().translation()
             self.cameras[idx].t = t
             q = camera_vertices[camera.camera_id].estimate().rotation()
             self.cameras[idx].R = utils.quarternion_to_rotation_matrix_g2o(q, inverse=False)
-
-        #for idx, point in enumerate(self.points):
-        #    p = point_vertices[point.point_id].estimate()
-            # It is important to copy the point estimates.
-            # Otherwise I end up with some memory issues.
-            # self.points[idx].point = p
-        #    self.points[idx].point = np.copy(p)
             
 class Vertex:
     def __init__(self, R, t, turbine_params):
