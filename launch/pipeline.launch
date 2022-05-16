@@ -1,0 +1,9 @@
+<launch>
+    <!-- Simulation -->
+    <include file="$(find autonomous_turbine_inspection)/launch/mavros_posix_sdu_drone.launch"/>
+    <!-- Drone control -->
+    <arg name="node_start_delay" default="10.0" /> 
+    <node name="drone_control" pkg="autonomous_turbine_inspection" type="drone_control.py" output="screen" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' "/>
+    <!-- Pose estimator -->
+    <node name="pose_estimator" pkg="autonomous_turbine_inspection" type="pose_estimator.py" output="screen"/>
+</launch>
