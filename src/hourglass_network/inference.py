@@ -54,7 +54,7 @@ class Inference:
         kps.sort(key=lambda x: x[2])
         test_img = cv2.imread(f'./src/hourglass_network/data/test_data/{img_name}')
         # Show keypoints on image
-        preprocessing.show_keypoints_on_img(kps, test_img, show=True)
+        #preprocessing.show_keypoints_on_img(kps, test_img, show=True)
         # Get input image for network
         input_img, label_img = preprocessing.process_annotations(annotations[annotation_idx])
         img = input_img[:,:,:3].copy()
@@ -74,32 +74,51 @@ class Inference:
         plt.imshow(np.sum(output, axis=2), cmap='gray', vmin=0, vmax=np.sum(output).max())
         output_img = output[:,:,:3]
         # Points
-        #wing_tips = output[:,:,3]
-        wing_tips = output[:,:,0]
-        #wing_center = output[:,:,4]
-        wing_center = output[:,:,1]
-        #tower_top = output[:,:,5]
-        tower_top = output[:,:,2]
-        #tower_bottom = output[:,:,6]
-        tower_bottom = output[:,:,3]
-        # Lines
-        #tower_bottom_to_tower_top = output[:,:,7]
-        tower_bottom_to_tower_top = output[:,:,4]
-        #tower_top_to_wing_center = output[:,:,8]
-        tower_top_to_wing_center = output[:,:,5]
-        #wing_center_to_wing_tips = output[:,:,9]
-        wing_center_to_wing_tips = output[:,:,6]
+        if self.version == 'v1old':
+            wing_tips = output[:,:,3]
+            wing_center = output[:,:,4]
+            tower_top = output[:,:,5]
+            tower_bottom = output[:,:,6]
+            # Lines
+            tower_bottom_to_tower_top = output[:,:,7]
+            tower_top_to_wing_center = output[:,:,8]
+            wing_center_to_wing_tips = output[:,:,9]
+        else:
+            wing_tips = output[:,:,0]
+            wing_center = output[:,:,1]
+            tower_top = output[:,:,2]
+            tower_bottom = output[:,:,3]
+            # Lines
+            tower_bottom_to_tower_top = output[:,:,4]
+            tower_top_to_wing_center = output[:,:,5]
+            wing_center_to_wing_tips = output[:,:,6]
         #TODO: Convert to PIL image and save to pdf?
         #cv2.imshow('label_lines', label_img[:,80:560,7:])
         cv2.imshow('label_lines', label_img[:,:,7:])
         #cv2.imshow('label_pts', label_img[:,:,::-1][:,80:560,4:7])
         cv2.imshow('label_pts', label_img[:,:,::-1][:,:,4:7])
-        cv2.imshow('input_lines', cropped_input_img[:,:,7:])
-        cv2.imshow('input_pts', cropped_input_img[:,:,::-1][:,:,4:7])
-        #cv2.imshow('output_lines', output[:,:,7:])
-        cv2.imshow('output_lines', output[:,:,4:])
-        #cv2.imshow('output_pts', output[:,:,::-1][:,:,4:7])
+        #cv2.imshow('input_lines', cropped_input_img[:,:,7:])
+        #cv2.imshow('input_pts', cropped_input_img[:,:,::-1][:,:,4:7])
+        cv2.imshow('input_lines', input_img[:,:,7:])
+        cv2.imshow('input_pts', input_img[:,:,::-1][:,:,4:7])
+        if self.version == 'v1old':
+            cv2.imshow('output_lines', output[:,:,7:])
+        else:
+            cv2.imshow('output_lines', output[:,:,4:])
         cv2.imshow('output_pts', output[:,:,::-1][:,:,4:7])
+        #template = Image.fromarray(vis_img)
+        #template.save('/home/magnus/chamfer_matcher_dist_img.pdf')
+        tmp_img = Image.fromarray(test_img[:,:,::-1])
+        tmp_img.save('/home/magnus/test_img.pdf')
+        tmp_label_lines = Image.fromarray((label_img[:,:,7:][:,:,::-1]*255).astype(np.uint8))
+        tmp_label_lines.save('/home/magnus/label_lines.pdf')
+        tmp_label_pts = Image.fromarray((label_img[:,:,::-1][:,:,4:7][:,:,::-1]*255).astype(np.uint8))
+        tmp_label_pts.save('/home/magnus/label_pts.pdf')
+        tmp_input_lines = Image.fromarray((input_img[:,:,7:][:,:,::-1]*255).astype(np.uint8))
+        tmp_input_lines.save('/home/magnus/input_lines.pdf')
+        tmp_input_pts = Image.fromarray((input_img[:,:,::-1][:,:,4:7][:,:,::-1]*255).astype(np.uint8))
+        tmp_input_pts.save('/home/magnus/input_pts.pdf')
+        
         
         upscale = True
         vis_img = img
