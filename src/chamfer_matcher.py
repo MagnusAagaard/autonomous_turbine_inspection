@@ -15,18 +15,21 @@ class ChamferMatcher:
         self.img_edges = cv2.Canny(self.img,50,100, apertureSize=3, L2gradient=True)
         self.detect_and_remove_horizontal_lines(self.img_edges)
         #self.dist_img = cv2.distanceTransform(255 - self.img_edges, cv2.DIST_L1, 3).astype(np.uint8)
-        self.dist_img = cv2.distanceTransform(255 - self.img_edges, cv2.DIST_L1, 3)
+        self.dist_img = cv2.distanceTransform(255 - self.img_edges, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
         self.dist_img *= 255/self.dist_img.max()
         self.dist_img = self.dist_img.astype(np.uint8)
+        self.dist_img_y = cv2.distanceTransform(255 - self.img_edges[470:,:], cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+        self.dist_img_y *= 255/self.dist_img_y.max()
+        self.dist_img_y = self.dist_img_y.astype(np.uint8)
         self.render = render
         self.template = cv2.cvtColor(self.render.offscreen_render([-100, 0, 66 + 8, 30, 46]), cv2.COLOR_BGR2GRAY)
         self.detect_edges()
-        self.match(init=True)
-        _, top_left, bottom_right = self.match()
-        vis_img = cv2.cvtColor(self.dist_img.copy(), cv2.COLOR_GRAY2RGB)
-        edges = np.argwhere(self.template_edges == 255)
-        for pt in edges:
-            vis_img[top_left[1]+pt[0], top_left[0]+pt[1],:] = np.array([255,0,0])
+        #self.match(init=True)
+        #_, top_left, bottom_right = self.match()
+        vis_img = cv2.cvtColor(self.dist_img_y.copy(), cv2.COLOR_GRAY2RGB)
+        #edges = np.argwhere(self.template_edges == 255)
+        #for pt in edges:
+        #    vis_img[top_left[1]+pt[0], top_left[0]+pt[1],:] = np.array([255,0,0])
         template = Image.fromarray(vis_img)
         template.save('/home/magnus/chamfer_matcher_dist_img.pdf')
     
@@ -39,14 +42,17 @@ class ChamferMatcher:
         #cv2.imshow('Template', self.template)
         #cv2.waitKey(0)
     
-    def detect_edges(self):
+    def detect_edges(self, fit_y=False):
         '''
         Detect edges in the template image and crop to minimum bounding box.
         '''
         self.template_edges = cv2.Canny(self.template,50,100, apertureSize=3, L2gradient=True)
         # Crop image by minimum bounding box
-        self.template_edges = self.template_edges[~np.all(self.template_edges == 0, axis=1)]
-        self.template_edges = self.template_edges[:, ~np.all(self.template_edges == 0, axis=0)]
+        if not fit_y:
+            self.template_edges = self.template_edges[~np.all(self.template_edges == 0, axis=1)]
+            self.template_edges = self.template_edges[:, ~np.all(self.template_edges == 0, axis=0)]
+        else:
+            self.template_edges[:470,:] = 0
         
     def detect_and_remove_horizontal_lines(self, img):
         '''
@@ -66,7 +72,7 @@ class ChamferMatcher:
             #cv2.drawContours(result, (), -1, (36,255,12), 2)
             cv2.line(img, pt1, pt2, 0, 2)
         
-    def match(self, init=False):
+    def match(self, init=False, fit_y=False):
         '''
         Performs chamfer matching using distance image.
         '''
@@ -82,7 +88,10 @@ class ChamferMatcher:
         #print('convolved loop\t\t', timeit.timeit(lambda: utils.convolve_mask(self.dist_img, self.template_edges), number=1))
         #convolved_img_mask = utils.convolve(self.dist_img, self.template_edges)
         #print('tm loop_ccorr\t\t', timeit.timeit(lambda: cv2.matchTemplate(self.dist_img, self.template_edges, cv2.TM_CCORR), number=1))
-        res = cv2.matchTemplate(self.dist_img, self.template_edges, cv2.TM_CCORR_NORMED)
+        if not fit_y:
+            res = cv2.matchTemplate(self.dist_img, self.template_edges, cv2.TM_CCORR_NORMED)
+        else:
+            res = cv2.matchTemplate(self.dist_img_y, self.template_edges, cv2.TM_CCORR_NORMED)
         #jitted_function2 = jit()(utils.convolve_mask)
         #print('jitted loop21\t\t', timeit.timeit(lambda: jitted_function2(self.dist_img, self.template_edges), number=1))
         #print('jitted loop22\t\t', timeit.timeit(lambda: jitted_function2(self.dist_img, self.template_edges), number=1))
@@ -126,12 +135,14 @@ class ChamferMatcher:
         x_range = 5
         y_range = 0
         z_range = 0
-        roll_range = 30
+        roll_range = 60
         yaw_range = 180
         
         # Start optimization
         opt_scores = []
         best_xi = copy(init_est)
+        # First optimize y to center in image..
+        best_xi = self.optimize(opt_scores, best_xi, [x_range, 5, z_range, roll_range, yaw_range], index=1, fit_y=True)
         # First optimize roll and yaw without x,y,z..
         best_xi = self.optimize(opt_scores, best_xi, [x_range, y_range, z_range, roll_range, yaw_range], index=3)
         print(f'Before inverse rotation test: {best_xi}')
@@ -150,16 +161,18 @@ class ChamferMatcher:
             best_xi = new_best_xi
         print(best_xi)
         # Refine estimation
-        scores, best_xi = self.refine_optimization(best_xi)
-        print(best_xi)
-        top_left = scores[1]
-        bottom_right = scores[2]
+        scores_final, best_xi_final = self.refine_optimization(best_xi)
+        print(best_xi_final)
+        top_left = scores_final[1]
+        bottom_right = scores_final[2]
         cv2.rectangle(self.img_color, top_left, bottom_right, 255, 2)
-        self.render_new_template(best_xi)
+        self.render_new_template(best_xi_final)
         self.detect_edges()
         edges = np.argwhere(self.template_edges == 255)
         for pt in edges:
             self.img_color[top_left[1]+pt[0], top_left[0]+pt[1],:] = np.array([0,0,255])
+        _, _, _ = self.match(init=True)
+        
         # Show results
         #img_temp = copy(self.img_color)
         if show_plots:
@@ -169,20 +182,24 @@ class ChamferMatcher:
             cv2.imshow('Template', self.template)
             cv2.imshow('Image', self.img_color)
             
-            plt.plot([score[0] for score in opt_scores[0]], label='Roll1')
-            plt.plot([score[0] for score in opt_scores[1]], label='Yaw1')
-            plt.plot([score[0] for score in opt_scores[2]], label='X2')
-            plt.plot([score[0] for score in opt_scores[3]], label='Y2')
-            plt.plot([score[0] for score in opt_scores[4]], label='Z2')
-            plt.plot([score[0] for score in opt_scores[5]], label='Roll2')
-            plt.plot([score[0] for score in opt_scores[6]], label='Yaw2')
+            plt.plot([score[0] for score in opt_scores[0]], label=r'$\phi$ iteration 1')
+            plt.plot([score[0] for score in opt_scores[1]], label=r'$\omega$ iteration 1')
+            #plt.plot([score[0] for score in opt_scores[2]], label='X2')
+            #plt.plot([score[0] for score in opt_scores[3]], label='Y2')
+            #plt.plot([score[0] for score in opt_scores[4]], label='Z2')
+            plt.plot([score[0] for score in opt_scores[5]], label=r'$\phi$ iteration 2')
+            plt.plot([score[0] for score in opt_scores[6]], label=r'$\omega$ iteration 2')
             plt.legend()
+            plt.xlabel(r'Degrees [$\degree$]')
+            plt.ylabel('Score')
+            #plt.savefig('/home/magnus/optimization_scores.pdf', bbox_inches='tight')
             #plt.show()
             
-            #cv2.waitKey(0)
-        return best_xi, self.img_color.copy()
+            cv2.waitKey(0)
+        
+        return best_xi_final, self.img_color.copy()
     
-    def optimize(self, opt_scores, init_est, est_range, index=0):
+    def optimize(self, opt_scores, init_est, est_range, index=0, fit_y=False):
         scores = []
         step_size = 1 if index != 1 else 0.1
         current_min = 99999
@@ -192,15 +209,15 @@ class ChamferMatcher:
         old_xi = copy(init_est)
         old_xi[index] = old_xi[index] - est_range[index]
         self.render_new_template(old_xi)
-        self.detect_edges()
-        f_old_xi = self.match()
+        self.detect_edges(fit_y=fit_y)
+        f_old_xi = self.match(fit_y=fit_y)
         xi = copy(old_xi)
         xi[index] += step_size
         
         for est in np.arange(0, est_range[index]*2, step_size):
             self.render_new_template(xi)
-            self.detect_edges()
-            f_xi = self.match()
+            self.detect_edges(fit_y=fit_y)
+            f_xi = self.match(fit_y=fit_y)
             scores.append(f_xi)
             dfx = (f_xi[0] - f_old_xi[0])
             old_xi = copy(xi)
@@ -212,15 +229,15 @@ class ChamferMatcher:
                 current_min = f_xi[0]
                 best_xi = copy(xi)
                 times_bigger_than_min = 0
-            if times_bigger_than_min > 10 and index < 3:
+            if times_bigger_than_min > 10 and (index == 0 or index == 2):
                 # Allow for roll and yaw to be fitted 
                 print(f"Stopping for index: {index}")
                 opt_scores.append(scores)
-                if index < 4:
+                if index < 4 and not fit_y:
                     return self.optimize(opt_scores, best_xi, est_range, index=index+1)
                 return best_xi
         opt_scores.append(scores)
-        if index < 4:
+        if index < 4 and not fit_y:
             return self.optimize(opt_scores, best_xi, est_range, index=index+1)
         return best_xi
     
@@ -232,25 +249,27 @@ class ChamferMatcher:
         min_score = f_xi
         min_xi = copy(xi)
         # First test yaw with same roll
-        for i in range(3):
-            inv_xi[4] += 90
-            self.render_new_template(inv_xi)
-            self.detect_edges()
-            f_inv_xi = self.match()
-            if f_inv_xi < min_score:
-                min_score = f_inv_xi
-                min_xi = copy(inv_xi)
+        for i in range(7):
+            inv_xi[4] += 45
+            for j in range(120):
+                inv_xi[3] = j
+                self.render_new_template(inv_xi)
+                self.detect_edges()
+                f_inv_xi = self.match()
+                if f_inv_xi < min_score:
+                    min_score = f_inv_xi
+                    min_xi = copy(inv_xi)
         # Roll 180 degrees and test yaws again
-        inv_xi = copy(xi)
-        inv_xi[3] += 180
-        for i in range(3):
-            inv_xi[4] += 90
-            self.render_new_template(inv_xi)
-            self.detect_edges()
-            f_inv_xi = self.match()
-            if f_inv_xi < min_score:
-                min_score = f_inv_xi
-                min_xi = copy(inv_xi)
+        #inv_xi = copy(xi)
+        #inv_xi[3] += 180
+        #for i in range(3):
+        #    inv_xi[4] += 90
+        #    self.render_new_template(inv_xi)
+        #    self.detect_edges()
+        #    f_inv_xi = self.match()
+        #    if f_inv_xi < min_score:
+        #        min_score = f_inv_xi
+        #        min_xi = copy(inv_xi)
         return min_xi
         
     
@@ -266,7 +285,7 @@ class ChamferMatcher:
         estimates = []
         print(params)
         for x in range(params[0]-3, params[0]+3, 1):
-            y=0
+            y=params[1]
             #for y in np.arange(params[1] - 0.2, params[1] + 0.2, 0.1):
                 #print(y)
             for z in range(params[2]-2, params[2]+2, 1):
@@ -294,10 +313,10 @@ def main():
     init_x = -100
     init_y = 0
     init_z = 74
-    init_roll = 20
+    init_roll = 80
     init_yaw = 0
     init_est = [init_x, init_y, init_z, init_roll, init_yaw]
-    #best_estimate = cm.run_optimization(init_est, 5)
+    best_estimate = cm.run_optimization(init_est, 5)
 
 if __name__ == "__main__":
     main()
