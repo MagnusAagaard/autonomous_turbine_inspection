@@ -13,10 +13,10 @@
 
 %%
 % Load test params
-%clear;clc;
+clear;clc;
 n1 = 1;
 n = 100;
-bad_idx = [3 6 29 48 50 53 55 59 88 90 93]
+bad_idx = [3 6 29 48 50 53 55 59 88 90 93];
 test_params = readmatrix("test_params.txt");
 recorded_values = readmatrix("recorded_values.txt");
 x = abs(test_params(n1:n,1) - recorded_values(n1:n,1));
@@ -25,19 +25,28 @@ z = abs(test_params(n1:n,3) - recorded_values(n1:n,3));
 phi = abs(mod(abs(mod(rad2deg(test_params(n1:n,4)),120) - mod(rad2deg(recorded_values(n1:n,4)),120)) + 3*60, 2*60) - 60)
 omega = abs(mod(abs(mod(rad2deg(test_params(n1:n,5)),360) - mod(rad2deg(recorded_values(n1:n,5)),360)) + 3*180, 2*180) - 180)
 for i=1:length(bad_idx)
+    x(bad_idx(i)) = 0.0;
+    y(bad_idx(i)) = 0.0;
+    z(bad_idx(i)) = 0.0;
     phi(bad_idx(i)) = 0.0;
     omega(bad_idx(i)) = 0.0;
 end
+mu_x = mean(x)
+std_x = std(x)
+mu_y = mean(y)
+std_y = std(y)
+mu_z = mean(z)
+std_z = std(z)
 mu_phi = mean(phi)
 std_phi = std(phi)
 mu_omega = mean(omega)
 std_omega = std(omega)
-figure(1)
-scatter(phi,omega)
+%figure(1)
+%scatter(phi,omega)
 figure(2)
 hold on;
-boxplot([phi,omega],'Labels',{char(966),char(969)});
-ylabel('Error [Degrees \circC]')
+boxplot([x,y,z,phi,omega],'Labels',{'x','y','z',char(966),char(969)});
+ylabel('Error')
 % Save figure
 clear figure_property;
 figure_property.units = 'inches';
@@ -75,4 +84,4 @@ set(chosen_figure,'PaperUnits','inches');
 set(chosen_figure,'PaperPositionMode','auto');
 set(chosen_figure,'PaperSize',[str2num(figure_property.Width) str2num(figure_property.Height)]); % Canvas Size
 set(chosen_figure,'Units','inches');
-hgexport(gcf,'boxplot.pdf',figure_property); %Set desired file name
+hgexport(gcf,'initial_pose_estimation_boxplot.pdf',figure_property); %Set desired file name
