@@ -3,6 +3,7 @@ import cv2
 
 # Plotting
 import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
 from mpl_toolkits.mplot3d import Axes3D
 from utils import get_rotation_matrix, get_rotation_matrix_from_world_to_camera_frame, convert_pose_to_camera_frame
 
@@ -97,17 +98,38 @@ class SkeletalTurbineModel:
         circular_wps1 = self.get_circular_motion_around_wingtip(self.line_model[2,1,:], inverse=True)
         circular_wps2 = self.get_circular_motion_around_wingtip(self.line_model[3,1,:], inverse=False)
         circular_wps3 = self.get_circular_motion_around_wingtip(self.line_model[4,1,:], inverse=True)
-        ax.plot(circular_wps1[0][:9], circular_wps1[1][:9], circular_wps1[2][:9], c='g', ls='--')
-        ax.plot(circular_wps2[0][:9], circular_wps2[1][:9], circular_wps2[2][:9], c='b', ls='--')
-        ax.plot(circular_wps3[0][:9], circular_wps3[1][:9], circular_wps3[2][:9], c='r', ls='--')
+        ax.plot(circular_wps1[0], circular_wps1[1], circular_wps1[2], c='g', ls='--')
+        ax.plot(circular_wps2[0], circular_wps2[1], circular_wps2[2], c='b', ls='--')
+        ax.plot(circular_wps3[0], circular_wps3[1], circular_wps3[2], c='r', ls='--')
         ax.plot(self.line_model[2,:,0] - uv12[0]*15, self.line_model[2,:,1] - uv12[1]*15, self.line_model[2,:,2]- uv12[2]*15, c='g', ls='--')
         ax.plot(self.line_model[3,:,0] - uv12[0]*15, self.line_model[3,:,1] - uv12[1]*15, self.line_model[3,:,2]- uv12[2]*15, c='b', ls='--')
         ax.plot(self.line_model[4,:,0] - uv12[0]*15, self.line_model[4,:,1] - uv12[1]*15, self.line_model[4,:,2]- uv12[2]*15, c='r', ls='--')
+        # Get waypoints along inspection
+        wps = self.subdivide_lines(waypoints=True)[2:]
+        xs0 = [x[0] for x in wps[0]]
+        xs1 = [x[0] for x in wps[1]]
+        xs2 = [x[0] for x in wps[2]]
+        ys0 = [y[1] for y in wps[0]]
+        ys1 = [y[1] for y in wps[1]]
+        ys2 = [y[1] for y in wps[2]]
+        zs0 = [z[2] for z in wps[0]]
+        zs1 = [z[2] for z in wps[1]]
+        zs2 = [z[2] for z in wps[2]]
+        ax.scatter(xs0+uv12[0]*15, ys0+uv12[1]*15, zs0+uv12[2]*15, marker='*', c='m', s=40)
+        ax.scatter(xs0-uv12[0]*15, ys0-uv12[1]*15, zs0-uv12[2]*15, marker='*', c='m', s=40)
+        ax.scatter(xs1+uv12[0]*15, ys1+uv12[1]*15, zs1+uv12[2]*15, marker='*', c='m', s=40)
+        ax.scatter(xs1-uv12[0]*15, ys1-uv12[1]*15, zs1-uv12[2]*15, marker='*', c='m', s=40)
+        ax.scatter(xs2+uv12[0]*15, ys2+uv12[1]*15, zs2+uv12[2]*15, marker='*', c='m', s=40)
+        ax.scatter(xs2-uv12[0]*15, ys2-uv12[1]*15, zs2-uv12[2]*15, marker='*', c='m', s=40)
+        marker = mlines.Line2D([], [], color='m', marker='*', linestyle='None',
+                          markersize=10, label='Inspection waypoints')
+        ax.legend(handles=[marker])
         #for line in self.line_model:
         #    ax.plot(line[:,0], line[:,1], line[:,2])
         set_axes_equal(ax)
         #fig.savefig('/home/magnus/instantiated_model.pdf', bbox_inches='tight')
         plt.show()
+        fig.savefig('/home/magnus/inspection_path.pdf', bbox_inches='tight')
         
     def cross_lines(self, line1, line2):
         v1 = line1[1] - line1[0]
