@@ -779,5 +779,76 @@
     "created_at": "2022-02-16T10:35:34.200538Z",
     "updated_at": "2022-02-16T10:35:34.200559Z",
     "lead_time": 21.751
+  },
+  {
+    "img": "/data/upload/3/964f42d6-test11.jpg",
+    "id": 163,
+    "kp-1": [
+      {
+        "x": 47.333333333333336,
+        "y": 0,
+        "width": 0.26666666666666666,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 3008,
+        "original_height": 2004
+      },
+      {
+        "x": 43.6,
+        "y": 100,
+        "width": 0.26666666666666666,
+        "keypointlabels": [
+          "wing_center_tmp"
+        ],
+        "original_width": 3008,
+        "original_height": 2004
+      },
+      {
+        "x": 43.46666666666667,
+        "y": 100,
+        "width": 0.26666666666666666,
+        "keypointlabels": [
+          "tower_top_tmp"
+        ],
+        "original_width": 3008,
+        "original_height": 2004
+      },
+      {
+        "x": 43.46666666666667,
+        "y": 100,
+        "width": 0.26666666666666666,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 3008,
+        "original_height": 2004
+      },
+      {
+        "x": 43.46666666666667,
+        "y": 100,
+        "width": 0.26666666666666666,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 3008,
+        "original_height": 2004
+      },
+      {
+        "x": 43.46666666666667,
+        "y": 100,
+        "width": 0.26666666666666666,
+        "keypointlabels": [
+          "tower_bottom_tmp"
+        ],
+        "original_width": 3008,
+        "original_height": 2004
+      }
+    ],
+    "annotator": 1,
+    "annotation_id": 233,
+    "created_at": "2022-05-17T08:17:02.764044Z",
+    "updated_at": "2022-05-17T08:17:02.764062Z",
+    "lead_time": 114.98
   }
 ]
