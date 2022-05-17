@@ -850,5 +850,289 @@
     "created_at": "2022-05-17T08:17:02.764044Z",
     "updated_at": "2022-05-17T08:17:02.764062Z",
     "lead_time": 114.98
+  },
+  {
+    "img": "/data/upload/3/204ee772-test12.png",
+    "id": 164,
+    "kp-1": [
+      {
+        "x": 0,
+        "y": 47.291666666666664,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 100,
+        "y": 43.541666666666664,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 100,
+        "y": 43.541666666666664,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 100,
+        "y": 43.541666666666664,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_center_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 100,
+        "y": 43.541666666666664,
+        "width": 0.3125,
+        "keypointlabels": [
+          "tower_top_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 100,
+        "y": 43.541666666666664,
+        "width": 0.3125,
+        "keypointlabels": [
+          "tower_bottom_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      }
+    ],
+    "annotator": 1,
+    "annotation_id": 234,
+    "created_at": "2022-05-17T08:40:55.320749Z",
+    "updated_at": "2022-05-17T08:40:55.320764Z",
+    "lead_time": 39.701
+  },
+  {
+    "img": "/data/upload/3/1ae62e27-test13.png",
+    "id": 165,
+    "kp-1": [
+      {
+        "x": 26.25,
+        "y": 54.791666666666664,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_tip"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 100,
+        "y": 50.833333333333336,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 100,
+        "y": 50.833333333333336,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 100,
+        "y": 50.833333333333336,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_center_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 100,
+        "y": 50.625,
+        "width": 0.3125,
+        "keypointlabels": [
+          "tower_top_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 100,
+        "y": 50.833333333333336,
+        "width": 0.3125,
+        "keypointlabels": [
+          "tower_bottom_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      }
+    ],
+    "annotator": 1,
+    "annotation_id": 235,
+    "created_at": "2022-05-17T08:41:36.470056Z",
+    "updated_at": "2022-05-17T08:41:36.470075Z",
+    "lead_time": 37.161
+  },
+  {
+    "img": "/data/upload/3/59cbcd14-test14.png",
+    "id": 166,
+    "kp-1": [
+      {
+        "x": 0,
+        "y": 81.04166666666667,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 73.4375,
+        "y": 0,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 44.6875,
+        "y": 100,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 35.46875,
+        "y": 83.54166666666667,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_center"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 36.71875,
+        "y": 77.29166666666667,
+        "width": 0.3125,
+        "keypointlabels": [
+          "tower_top"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 36.875,
+        "y": 100,
+        "width": 0.3125,
+        "keypointlabels": [
+          "tower_bottom_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      }
+    ],
+    "annotator": 1,
+    "annotation_id": 236,
+    "created_at": "2022-05-17T08:42:30.917792Z",
+    "updated_at": "2022-05-17T08:42:30.917806Z",
+    "lead_time": 53.239
+  },
+  {
+    "img": "/data/upload/3/a30b2705-test15.png",
+    "id": 167,
+    "kp-1": [
+      {
+        "x": 8.75,
+        "y": 57.916666666666664,
+        "width": 0.3125,
+        "keypointlabels": [
+          "tower_top"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 20.15625,
+        "y": 54.166666666666664,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_center"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 100,
+        "y": 53.125,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 0,
+        "y": 4.583333333333333,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 0,
+        "y": 96.875,
+        "width": 0.3125,
+        "keypointlabels": [
+          "wing_tip_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      },
+      {
+        "x": 9.21875,
+        "y": 100,
+        "width": 0.3125,
+        "keypointlabels": [
+          "tower_bottom_tmp"
+        ],
+        "original_width": 640,
+        "original_height": 480
+      }
+    ],
+    "annotator": 1,
+    "annotation_id": 237,
+    "created_at": "2022-05-17T08:44:41.169654Z",
+    "updated_at": "2022-05-17T09:03:23.656504Z",
+    "lead_time": 23.121
   }
 ]
