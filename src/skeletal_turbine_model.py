@@ -189,6 +189,10 @@ class SkeletalTurbineModel:
             #steps = int(mag / step_sizes[i])
             steps = step_sizes[i]
             dxyz = mag/steps
+            #NOTE: For error test
+            if waypoints:
+                line[0][2] += 1
+                line[1][2] += 1
             unit_vector = (line[1]-line[0])/mag
             line_divided = []
             for j in range(1,steps+1):
@@ -199,7 +203,7 @@ class SkeletalTurbineModel:
         return lines_divided
             
 
-    def project_model_to_image(self, img=None, K=None, cam_pose=None, search_radius=40, pose_in_world_frame=False, pose_offset=None, show_img=False):
+    def project_model_to_image(self, img=None, K=None, cam_pose=None, cam_pose_with_error=None, search_radius=40, pose_in_world_frame=False, pose_offset=None, show_img=False):
         # Project the model into image coordinate system (2D)
         if img is None:
             img_h = 480
@@ -225,6 +229,31 @@ class SkeletalTurbineModel:
         # Projection matrix P = K [R|t]
         if pose_in_world_frame:
             cam_pose = convert_pose_to_camera_frame(cam_pose)
+        
+        # For error model model
+        if cam_pose_with_error is not None:
+            P = K @ cam_pose_with_error
+            img_pts_error = np.zeros((6,2))
+            for i, pt in enumerate(self.init_point_model):
+                # Transform point to homogenous coords
+                point = np.copy(pt)
+                point = np.append(point,1)
+                # Perspective transform
+                point = P @ point
+                # Re-scale homogenous point
+                if point[2] > 0:
+                    point /= point[2]
+                img_pts_error[i,:] = point[:2]
+            # Show results
+            for u, v in img_pts_error:
+                cv2.circle(img, (int(u), int(v)), 5, (0,255,0), 1)
+                cv2.circle(img, (int(u), int(v)), int(search_radius), (0,255,0), 1)
+            for i in range(2):
+                cv2.line(img, (int(img_pts_error[i,0]), int(img_pts_error[i,1])), (int(img_pts_error[i+1,0]), int(img_pts_error[i+1,1])), (0,255,0), 1)
+            cv2.line(img, (int(img_pts_error[2,0]), int(img_pts_error[2,1])), (int(img_pts_error[3,0]), int(img_pts_error[3,1])), (0,255,0), 1)
+            cv2.line(img, (int(img_pts_error[2,0]), int(img_pts_error[2,1])), (int(img_pts_error[4,0]), int(img_pts_error[4,1])), (0,255,0), 1)
+            cv2.line(img, (int(img_pts_error[2,0]), int(img_pts_error[2,1])), (int(img_pts_error[5,0]), int(img_pts_error[5,1])), (0,255,0), 1)
+        
         # For init point model
         P = K @ cam_pose
         img_pts_init = np.zeros((6,2))
@@ -247,14 +276,17 @@ class SkeletalTurbineModel:
                 point /= point[2]
             img_pts_init[i,:] = point[:2]
         # Show results
-        for u, v in img_pts_init:
-            cv2.circle(img, (int(u), int(v)), 5, (255,0,0), 1)
-            cv2.circle(img, (int(u), int(v)), int(search_radius), (255,0,0), 1)
-        for i in range(2):
-            cv2.line(img, (int(img_pts_init[i,0]), int(img_pts_init[i,1])), (int(img_pts_init[i+1,0]), int(img_pts_init[i+1,1])), (255,0,0), 1)
-        cv2.line(img, (int(img_pts_init[2,0]), int(img_pts_init[2,1])), (int(img_pts_init[3,0]), int(img_pts_init[3,1])), (255,0,0), 1)
-        cv2.line(img, (int(img_pts_init[2,0]), int(img_pts_init[2,1])), (int(img_pts_init[4,0]), int(img_pts_init[4,1])), (255,0,0), 1)
-        cv2.line(img, (int(img_pts_init[2,0]), int(img_pts_init[2,1])), (int(img_pts_init[5,0]), int(img_pts_init[5,1])), (255,0,0), 1)
+        #for u, v in img_pts_init:
+        #    cv2.circle(img, (int(u), int(v)), 5, (255,0,0), 1)
+        #    cv2.circle(img, (int(u), int(v)), int(search_radius), (255,0,0), 1)
+        #for i in range(2):
+        #    cv2.line(img, (int(img_pts_init[i,0]), int(img_pts_init[i,1])), (int(img_pts_init[i+1,0]), int(img_pts_init[i+1,1])), (255,0,0), 1)
+        #cv2.line(img, (int(img_pts_init[2,0]), int(img_pts_init[2,1])), (int(img_pts_init[3,0]), int(img_pts_init[3,1])), (255,0,0), 1)
+        #cv2.line(img, (int(img_pts_init[2,0]), int(img_pts_init[2,1])), (int(img_pts_init[4,0]), int(img_pts_init[4,1])), (255,0,0), 1)
+        #cv2.line(img, (int(img_pts_init[2,0]), int(img_pts_init[2,1])), (int(img_pts_init[5,0]), int(img_pts_init[5,1])), (255,0,0), 1)
+        
+        
+        '''
         if self.cam_pose_from_optimizer is not None:
             P = K @ self.cam_pose_from_optimizer
         # Project to 2D
@@ -278,10 +310,12 @@ class SkeletalTurbineModel:
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[3,0]), int(img_pts[3,1])), (0,255,0), 1)
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[4,0]), int(img_pts[4,1])), (0,255,0), 1)
         cv2.line(img, (int(img_pts[2,0]), int(img_pts[2,1])), (int(img_pts[5,0]), int(img_pts[5,1])), (0,255,0), 1)
+        '''
         
-        if pose_offset is not None:
+        if pose_offset is not None and cam_pose_with_error is not None:
             P = np.identity(4)
-            P[:3,:] = cam_pose.copy()
+            #P[:3,:] = cam_pose.copy()
+            P[:3,:] = cam_pose_with_error.copy()
             inv_cam_pose = np.linalg.inv(P)
             # Offset in cam frame 
             P_off = pose_offset.copy()
