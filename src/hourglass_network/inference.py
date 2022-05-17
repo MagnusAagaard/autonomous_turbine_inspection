@@ -46,7 +46,7 @@ class Inference:
         test_img = cv2.imread(f'./src/hourglass_network/data/test_data/{img_name}')
         print('inference\t\t', timeit.timeit(lambda: self.forward(test_img, kps), number=300) / 300)
         
-    def run_test(self, annotation_idx, old_version=False):
+    def run_test(self, annotation_idx):
         # Get annotations and load image + keypoints
         annotations = preprocessing.get_annotations('./src/hourglass_network/data/annotations_test.json')
         img_name = preprocessing.get_img_name(annotations[annotation_idx])
@@ -110,18 +110,26 @@ class Inference:
         #template.save('/home/magnus/chamfer_matcher_dist_img.pdf')
         tmp_img = Image.fromarray(test_img[:,:,::-1])
         tmp_img.save('/home/magnus/test_img.pdf')
-        tmp_label_lines = Image.fromarray((label_img[:,:,7:][:,:,::-1]*255).astype(np.uint8))
+        tmp_label_lines = Image.fromarray((label_img[:,:,7:][:,:,::-1]*255/label_img[:,:,7:][:,:,::-1].max()).astype(np.uint8))
         tmp_label_lines.save('/home/magnus/label_lines.pdf')
-        tmp_label_pts = Image.fromarray((label_img[:,:,::-1][:,:,4:7][:,:,::-1]*255).astype(np.uint8))
+        tmp_label_pts = Image.fromarray((label_img[:,:,::-1][:,:,4:7][:,:,::-1]*255/label_img[:,:,::-1][:,:,4:7][:,:,::-1].max()).astype(np.uint8))
         tmp_label_pts.save('/home/magnus/label_pts.pdf')
-        tmp_input_lines = Image.fromarray((input_img[:,:,7:][:,:,::-1]*255).astype(np.uint8))
+        tmp_input_lines = Image.fromarray((input_img[:,:,7:][:,:,::-1]*255/input_img[:,:,7:][:,:,::-1].max()).astype(np.uint8))
         tmp_input_lines.save('/home/magnus/input_lines.pdf')
-        tmp_input_pts = Image.fromarray((input_img[:,:,::-1][:,:,4:7][:,:,::-1]*255).astype(np.uint8))
+        tmp_input_pts = Image.fromarray((input_img[:,:,::-1][:,:,4:7][:,:,::-1]*255/input_img[:,:,::-1][:,:,4:7][:,:,::-1].max()).astype(np.uint8))
         tmp_input_pts.save('/home/magnus/input_pts.pdf')
+        tmp_output_pts = Image.fromarray((output[:,:,::-1][:,:,4:7][:,:,::-1]*255/output[:,:,::-1][:,:,4:7][:,:,::-1].max()).astype(np.uint8))
+        tmp_output_pts.save('/home/magnus/output_pts.pdf')
+        if self.version == 'v1old':
+            tmp_output_lines = Image.fromarray((output[:,:,7:][:,:,::-1]*255/output[:,:,7:][:,:,::-1].max()).astype(np.uint8))
+        else:
+            tmp_output_lines = Image.fromarray((output[:,:,4:][:,:,::-1]*255/output[:,:,4:][:,:,::-1].max()).astype(np.uint8))
+        tmp_output_lines.save('/home/magnus/output_lines.pdf')
         
         
         upscale = True
-        vis_img = img
+        vis_img = img.copy()
+        vis_img2 = img.copy()
         # Project points to image
         #wing_tip_pts = self.get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=upscale)
         #wing_center_pt = self.get_pt_from_heatmap(wing_center, original_image_dims=test_img.shape, upscale=upscale)
@@ -135,13 +143,23 @@ class Inference:
         tower_top_pt = self.get_pt_from_heatmap_within_radius(tower_top, self.downscale_pt(kps[1][:2],test_img.shape), 10, test_img.shape, threshold = 0.2, upscale=upscale)
         tower_bottom_pt = self.get_pt_from_heatmap_within_radius(tower_bottom, self.downscale_pt(kps[0][:2],test_img.shape), 10, test_img.shape, threshold = 0.2, upscale=upscale)
         for pt in wing_tip_pts:
-            cv2.circle(vis_img, pt, 5, (0,1,0), -1)
+            if pt[0] != -1 and pt[1] != -1:
+                cv2.circle(vis_img, pt, 5, (0,1,0), -1)
         if wing_center_pt:
-            cv2.circle(vis_img, wing_center_pt, 5, (1,0,0), -1)
+            if wing_center_pt[0] != -1 and wing_center_pt[1] != -1:
+                cv2.circle(vis_img, wing_center_pt, 5, (1,0,0), -1)
         if tower_top_pt:
-            cv2.circle(vis_img, tower_top_pt, 5, (0,0,1), -1)
+            if tower_top_pt[0] != -1 and tower_top_pt[1] != -1:
+                cv2.circle(vis_img, tower_top_pt, 5, (0,0,1), -1)
         if tower_bottom_pt:
-            cv2.circle(vis_img, tower_bottom_pt, 5, (1,1,0), -1)
+            if tower_bottom_pt[0] != -1 and tower_bottom_pt[1] != -1:
+                cv2.circle(vis_img, tower_bottom_pt, 5, (1,1,0), -1)
+        lines = self.project_lines_to_image(kps, vis_img2, tower_bottom_to_tower_top, tower_top_to_wing_center, wing_center_to_wing_tips)
+        for line in lines:
+            for pt in line:
+                if pt[0] != -1 and pt[1] != -1:
+                    cv2.circle(vis_img, (pt[0], pt[1]), 10, (1,0,1), 5)
+                    
         # Input points to find radius used to detect points..
         #max_pts = self.get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=upscale)
         #test_pts = self.get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=False)
@@ -157,7 +175,12 @@ class Inference:
         plt.figure(5)
         plt.imshow(wing_center, cmap='gray')
         # Show results
-        cv2.imshow('img',img)
+        tmp_kp_img = Image.fromarray((vis_img2[:,:,::-1]*255).astype(np.uint8))
+        tmp_inference_img = Image.fromarray((vis_img[:,:,::-1]*255).astype(np.uint8))
+        tmp_kp_img.save('/home/magnus/kp_img.pdf')
+        tmp_inference_img.save('/home/magnus/inference_img.pdf')
+        cv2.imshow('img', vis_img)
+        cv2.imshow('img2', vis_img2)
         #cv2.imshow('Output_img', output_img)
         cv2.imshow('Cropped img', cropped_img)
         plt.show()
@@ -295,15 +318,87 @@ class Inference:
         # Take right hand collumn of V as it corresponds to best solution (smallest singular value s)
         # as we get V.T it is last row..
         return vh[-1,:]
+    
+    def project_lines_to_image(self, kps, vis_img, Pi_bottom_to_top, Pi_top_to_centre, Pi_centre_to_blades):
+        '''
+        Take label kps, create lines from them and calculate perpendicular uvec to these lines used to search for kps at in projection image
+        '''
+        # tower_bottom --> tower_top
+        bottom = np.asarray(kps[0][:2])
+        top = np.asarray(kps[1][:2])
+        centre = np.asarray(kps[2][:2])
+        wing1 = np.asarray(kps[3][:2])
+        wing2 = np.asarray(kps[4][:2])
+        wing3 = np.asarray(kps[5][:2])
+        bot_to_top = top - bottom
+        top_to_centre = centre - top
+        centre_to_wing1 = wing1 - centre
+        centre_to_wing2 = wing2 - centre
+        centre_to_wing3 = wing3 - centre
+        
+        step_sizes = [1, 1, 1]
+        h = 71.74-8
+        r = 5.16
+        b = 35.1
+        tower_step = int(h / step_sizes[0])
+        top_step = int(r / step_sizes[1])
+        blade_step = int((b - step_sizes[2]) / step_sizes[2])
+        
+        est_D = 15
+        lines = []
+        lines.append(self.show_line_search_dist(bot_to_top, tower_step, bottom, vis_img, est_D, Pi_bottom_to_top))
+        lines.append(self.show_line_search_dist(top_to_centre, top_step, top, vis_img, est_D, Pi_top_to_centre))
+        lines.append(self.show_line_search_dist(centre_to_wing1, blade_step, centre, vis_img, est_D, Pi_centre_to_blades))
+        lines.append(self.show_line_search_dist(centre_to_wing2, blade_step, centre, vis_img, est_D, Pi_centre_to_blades))
+        lines.append(self.show_line_search_dist(centre_to_wing3, blade_step, centre, vis_img, est_D, Pi_centre_to_blades))
+        preprocessing.show_keypoints_on_img(kps, vis_img, show=False)
+        return lines
+        
+    def show_line_search_dist(self, v, steps, start_pt, vis_img, est_D, P_img, show=True):
+        unit_v = v/np.linalg.norm(v)
+        # Vector perpendicular to line
+        perp_uvec = np.array([unit_v[1], -unit_v[0]])
+        dist = 3*554.92/est_D
+        dxy = v/steps
+        if show:
+            for i in range(steps+1):
+                pt = start_pt + i*dxy
+                nan_test1 = np.isnan(pt[0] - dist*perp_uvec[0])
+                nan_test2 = np.isnan(pt[1] - dist*perp_uvec[1])
+                if not nan_test1 and not nan_test2:
+                    pt1 = (int(pt[0] - dist*perp_uvec[0]), int(pt[1] - dist*perp_uvec[1]))
+                    pt2 = (int(pt[0] + dist*perp_uvec[0]), int(pt[1] + dist*perp_uvec[1]))
+                    cv2.line(vis_img, pt1, pt2, (0,0,1), 1)
+                #cv2.circle(vis_img, (int(pt[0]),int(pt[1])), 2, (1,1,0), -1)
+        line_pts = []
+        scaled_dist = np.ceil(0.54*dist).astype('int')
+        for i in range(steps+1):
+            pt = self.downscale_pt(start_pt + i*dxy, vis_img.shape)
+            nan_test1 = np.isnan(pt[0] - scaled_dist*perp_uvec[0])
+            nan_test2 = np.isnan(pt[1] - scaled_dist*perp_uvec[1])
+            if not nan_test1 and not nan_test2:
+                line_pts.append(self.get_line_from_heatmap(P_img, pt, perp_uvec, scaled_dist, vis_img.shape, upscale=True))
+        return line_pts
+        #for pt in line_pts:
+        #    if pt[0] != -1 and pt[1] != -1:
+        #        cv2.circle(vis_img, (pt[0], pt[1]), 2, (1,0,1), 1)
+            #pt1 = (int(pt[0] - dist*perp_uvec[0]), int(pt[1] - dist*perp_uvec[1]))
+            #pt2 = (int(pt[0] + dist*perp_uvec[0]), int(pt[1] + dist*perp_uvec[1]))
+        
 
 def main():
     # Get input image
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run5/model_best_epoch744.pt', version='v2')
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run11/model_best.pt', version='v1e')
-    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run3/model_best_epoch704.pt', version='v1old')
+    #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run3/model_best_epoch704.pt', version='v1old')
+    #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run4/model_best.pt', version='v1old')
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run13/model_best.pt')
-    #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run15/model_best.pt', version='v1c')
-    annotation_idx = 0
+    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run15/model_best.pt', version='v1c')
+    # Use 3 and 4?
+    # Get more images of wind turbine blades
+    # Idx 2, 4, 9
+    #annotation_idx = 9
+    annotation_idx = 11
     #inferencer.test_timing(annotation_idx)
     inferencer.run_test(annotation_idx)
 
