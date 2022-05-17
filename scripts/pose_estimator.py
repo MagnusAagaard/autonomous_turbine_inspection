@@ -8,7 +8,8 @@ from copy import copy
 
 from std_msgs.msg import Bool, Float32, Float32MultiArray
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import PoseStamped, Pose
+from geometry_msgs.msg import PoseStamped, Pose, Quaternion
+from gazebo_msgs.msg import ModelStates
 from skeletal_turbine_model import SkeletalTurbineModel
 from chamfer_matcher import ChamferMatcher
 from renderer import Renderer
@@ -57,7 +58,7 @@ class PoseEstimator:
                                wings='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
         #self.stm = SkeletalTurbineModel(c=(360, 0), h=71.74-8, omega=np.pi+np.deg2rad(45), phi=np.pi/2)
         self.optimizer = PoseGraphOptimization(camera_matrix=self.K)
-        self.three_dim_viewport = Display3D()
+        #self.three_dim_viewport = Display3D()
         self.last_optimization_time = rospy.Time.now()
         
         self._init_subscribers()
@@ -68,6 +69,7 @@ class PoseEstimator:
         # Setup subscribers
         self.img_sub = rospy.Subscriber('/mono_cam/image_raw', Image, self._image_cb)
         self.pose_sub = rospy.Subscriber("/mavros/local_position/pose", PoseStamped, self._pose_cb)
+        self.true_pose_sub = rospy.Subscriber("/gazebo/model_states", ModelStates, self._true_pose_cb)
         self.trigger_sub = rospy.Subscriber('~trigger_image_save', Bool, self.__trigger_cb)
         self.toggle_estimator_sub = rospy.Subscriber('/drone_control/toggle_pose_estimator', Bool, self._toggle_optimizer_cb)
         
@@ -97,14 +99,15 @@ class PoseEstimator:
         init_est = [init_x, init_y, init_z, init_roll, init_yaw]
         x = self.pose.pose.position.x
         y = self.pose.pose.position.y
-        best_estimate, self.rst_img = cm.run_optimization(init_est, 5, show_plots=False)
-        x += -best_estimate[0]
-        y += best_estimate[1]
+        #best_estimate, self.rst_img = cm.run_optimization(init_est, 5, show_plots=False)
+        #print(f'BE: {best_estimate}')
+        #x += -best_estimate[0]
+        #y += best_estimate[1]
         # We know there is 8m from MSL to bottom/where turbine is located
-        z = best_estimate[2] - 8
-        roll = np.deg2rad(60 + best_estimate[3])
-        yaw = np.pi + np.deg2rad(best_estimate[4])
-        print(f'Estimates: ({x},{y},{z},{roll},{yaw})')
+        #z = best_estimate[2] - 8
+        #roll = np.deg2rad(60 + best_estimate[3])
+        #yaw = np.pi + np.deg2rad(best_estimate[4])
+        #print(f'Estimates: ({x},{y},{z},{roll-np.deg2rad(60)},{yaw - np.pi})')
         #NOTE: Currently fixed estimate
         x = 110
         y = 0
@@ -124,6 +127,9 @@ class PoseEstimator:
         cam = self.optimizer.add_camera(cam)
         # Add 3D points and lines
         self.optimizer.add_point_model_to_points(self.stm.point_model)
+        #with open('/home/magnus/master_thesis/inspections/point_model.txt', 'a') as f:
+        #    for pt in self.stm.point_model:
+        #        f.write(f'{pt[0]},{pt[1]},{pt[2]}\n')
         self.optimizer.add_line_model_to_points(self.stm.subdivide_lines())
         # Project points to 2D and add observations
         points_2d, lines_divided_2d = self.stm.project_model_to_image(img=init_img, K=self.K, cam_pose=np.column_stack((R,t)), pose_in_world_frame=False)
@@ -132,7 +138,7 @@ class PoseEstimator:
         self.optimizer.create_observations(list_of_2d_pts, cam.camera_id)
         self.last_optimization_time = rospy.Time.now()
         # Draw 3D views
-        self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
+        #self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
         self.launch_time = rospy.Time.now()
         
     def _publish_stm_params(self, params):
@@ -190,6 +196,10 @@ class PoseEstimator:
             if self.stm:
                 R,t = utils.get_camera_pose_from_pose_msg(self.pose)
                 cam_pose = np.column_stack((R,t))
+                pose_error = copy(self.pose)
+                pose_error.pose.position.z -= 1
+                Rerr,terr = utils.get_camera_pose_from_pose_msg(pose_error)
+                cam_pose_with_error = np.column_stack((Rerr,terr))
                 
                 # pixels = known_width*focal_length/D'
                 est_D = 100
@@ -201,12 +211,13 @@ class PoseEstimator:
                 search_radius = 4*554.92/est_D
                 # Actual wing height is around 2.5m so 3m is good
                 search_dist = 3*554.92/est_D
-                kps, lines_divided_2d = self.stm.project_model_to_image(img=drone_img, K=self.K, cam_pose=cam_pose, search_radius=search_radius, pose_offset=self.est_pose_offset, pose_in_world_frame=False)
+                #kps, lines_divided_2d = self.stm.project_model_to_image(img=drone_img, K=self.K, cam_pose=cam_pose, search_radius=search_radius, pose_offset=self.est_pose_offset, pose_in_world_frame=False)
+                kps, lines_divided_2d = self.stm.project_model_to_image(img=drone_img, K=self.K, cam_pose=cam_pose, cam_pose_with_error=cam_pose_with_error, search_radius=search_radius, pose_offset=self.est_pose_offset, pose_in_world_frame=False)
                 output = self.inferencer.forward(input_img, kps)
                 new_kps = self.process_inference_output(kps, lines_divided_2d, output, search_radius, search_dist, input_img, use_line_fit=False)
                 
                 if (rospy.Time.now() - self.launch_time) > self.time_before_running_optimization and (rospy.Time.now() - self.last_optimization_time) > self.time_between_optimizations:
-                    cam = Camera(R=R, t=t)
+                    cam = Camera(R=Rerr, t=terr)
                     cam = self.optimizer.add_camera(cam)
                     self.optimizer.create_observations(new_kps, cam.camera_id)
                     #print(f'Point model: {self.stm.point_model}')
@@ -216,17 +227,70 @@ class PoseEstimator:
                     self.est_pose_offset = self.optimizer.get_relative_pose_offset_new()
                     self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
                     self.last_optimization_time = rospy.Time.now()
-                    self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
+                    #self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
                 for pt in new_kps:
                     cv2.circle(input_img, (int(pt[0]), int(pt[1])), 3, (0,0,255), 1)
         
         if self.n_frames_added >= self.n_frames_for_pose_graph:
             self._publish_pose_offset()
             self.run_optimizer = False
-            self.next_wp_pub.publish(Bool(data=True))
             # Save images during inspection
             cv2.imwrite(f'/home/magnus/master_thesis/inspections/{self.img_num}.png', clean_img)
             cv2.imwrite(f'/home/magnus/master_thesis/inspections/{self.img_num}_poses.png', drone_img)
+            if self.img_num > 0:
+                # Save true poses as txt file
+                tx = self.true_pose.position.x
+                ty = self.true_pose.position.y
+                tz = self.true_pose.position.z
+                tq0 = self.true_pose.orientation.x
+                tq1 = self.true_pose.orientation.y
+                tq2 = self.true_pose.orientation.z
+                tq3 = self.true_pose.orientation.w
+                tq = Quaternion()
+                tq.x = tq0
+                tq.y = tq1
+                tq.z = tq2
+                tq.w = tq3
+                with open('/home/magnus/master_thesis/inspections/true_poses.txt', 'a') as f:
+                    f.write(f'{tx},{ty},{tz}\n')
+                # Save true poses but offset
+                offset = self.est_pose_offset.copy()
+                off_x = offset[2,3]
+                off_y = -offset[0,3]
+                off_z = -offset[1,3]
+                M = np.identity(4)
+                M[:3, :3] = offset[:3,:3]
+                q = utils.quaternion_from_matrix(M)
+                # q[0] = -q.y(), q[1] = -q.z(), q[2] = q.x()
+                off_q = Quaternion()
+                off_q.x = q[2]
+                off_q.y = -q[0]
+                off_q.z = -q[1]
+                off_q.w = q[3]
+                #est_offset = np.zeros((3,4))
+                est_offset = np.identity(4)
+                est_offset[:3,:3] = utils.quarternion_to_rotation_matrix(off_q)
+                est_offset[0,3] = off_x
+                est_offset[1,3] = off_y
+                est_offset[2,3] = off_z
+                #t_off = est_offset[:3,3]
+                #R_off = est_offset[:3,:3]
+                t = np.array([tx, ty, tz], dtype=np.float64)
+                R = utils.quarternion_to_rotation_matrix(tq)
+                #M = np.identity(4)
+                Pbf = np.identity(4)
+                Pbf[:3,:3] = R.copy()
+                Pbf[:3,3] = t.copy()
+                Poff = est_offset.copy()
+                new_P = Pbf @ np.linalg.inv(Poff)
+                new_x = new_P[0,3]
+                new_y = new_P[1,3]
+                new_z = new_P[2,3]
+                # Now save..
+                with open('/home/magnus/master_thesis/inspections/without_offset_poses.txt', 'a') as f:
+                    f.write(f'{new_x},{new_y},{new_z}\n')
+                # Save 3D wps
+            self.next_wp_pub.publish(Bool(data=True))
             self.img_num += 1
             
         if not self.run_optimizer:
@@ -239,6 +303,10 @@ class PoseEstimator:
     def _pose_cb(self, pose_msg):
         # Pose callback
         self.pose = pose_msg
+        
+    def _true_pose_cb(self, model_msg):
+        # True pose callback
+        self.true_pose = model_msg.pose[3]
         
     def process_inference_output(self, kps, lines_divided_2d, output, search_radius, search_dist, input_img, use_line_fit = False):
         '''
