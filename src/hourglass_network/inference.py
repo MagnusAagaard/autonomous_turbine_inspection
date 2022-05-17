@@ -144,21 +144,21 @@ class Inference:
         tower_bottom_pt = self.get_pt_from_heatmap_within_radius(tower_bottom, self.downscale_pt(kps[0][:2],test_img.shape), 10, test_img.shape, threshold = 0.2, upscale=upscale)
         for pt in wing_tip_pts:
             if pt[0] != -1 and pt[1] != -1:
-                cv2.circle(vis_img, pt, 5, (0,1,0), -1)
+                cv2.circle(vis_img, pt, 10, (0,1,0), -1)
         if wing_center_pt:
             if wing_center_pt[0] != -1 and wing_center_pt[1] != -1:
-                cv2.circle(vis_img, wing_center_pt, 5, (1,0,0), -1)
+                cv2.circle(vis_img, wing_center_pt, 10, (1,0,0), -1)
         if tower_top_pt:
             if tower_top_pt[0] != -1 and tower_top_pt[1] != -1:
-                cv2.circle(vis_img, tower_top_pt, 5, (0,0,1), -1)
+                cv2.circle(vis_img, tower_top_pt, 10, (0,0,1), -1)
         if tower_bottom_pt:
             if tower_bottom_pt[0] != -1 and tower_bottom_pt[1] != -1:
-                cv2.circle(vis_img, tower_bottom_pt, 5, (1,1,0), -1)
+                cv2.circle(vis_img, tower_bottom_pt, 10, (1,1,0), -1)
         lines = self.project_lines_to_image(kps, vis_img2, tower_bottom_to_tower_top, tower_top_to_wing_center, wing_center_to_wing_tips)
         for line in lines:
             for pt in line:
                 if pt[0] != -1 and pt[1] != -1:
-                    cv2.circle(vis_img, (pt[0], pt[1]), 10, (1,0,1), 5)
+                    cv2.circle(vis_img, (pt[0], pt[1]), 5, (1,0,1), 2)
                     
         # Input points to find radius used to detect points..
         #max_pts = self.get_wing_tips(wing_tips, original_image_dims=test_img.shape, upscale=upscale)
@@ -336,7 +336,7 @@ class Inference:
         centre_to_wing2 = wing2 - centre
         centre_to_wing3 = wing3 - centre
         
-        step_sizes = [1, 1, 1]
+        step_sizes = [10, 3, 2]
         h = 71.74-8
         r = 5.16
         b = 35.1
@@ -344,13 +344,13 @@ class Inference:
         top_step = int(r / step_sizes[1])
         blade_step = int((b - step_sizes[2]) / step_sizes[2])
         
-        est_D = 15
+        est_D = 30
         lines = []
         lines.append(self.show_line_search_dist(bot_to_top, tower_step, bottom, vis_img, est_D, Pi_bottom_to_top))
         lines.append(self.show_line_search_dist(top_to_centre, top_step, top, vis_img, est_D, Pi_top_to_centre))
-        lines.append(self.show_line_search_dist(centre_to_wing1, blade_step, centre, vis_img, est_D, Pi_centre_to_blades))
-        lines.append(self.show_line_search_dist(centre_to_wing2, blade_step, centre, vis_img, est_D, Pi_centre_to_blades))
-        lines.append(self.show_line_search_dist(centre_to_wing3, blade_step, centre, vis_img, est_D, Pi_centre_to_blades))
+        lines.append(self.show_line_search_dist(centre_to_wing1, int(blade_step), centre, vis_img, est_D, Pi_centre_to_blades))
+        lines.append(self.show_line_search_dist(centre_to_wing2, int(blade_step/2), centre, vis_img, est_D, Pi_centre_to_blades))
+        lines.append(self.show_line_search_dist(centre_to_wing3, int(blade_step/2), centre, vis_img, est_D, Pi_centre_to_blades))
         preprocessing.show_keypoints_on_img(kps, vis_img, show=False)
         return lines
         
@@ -392,15 +392,12 @@ def main():
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run11/model_best.pt', version='v1e')
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run3/model_best_epoch704.pt', version='v1old')
     #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run4/model_best.pt', version='v1old')
-    #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run13/model_best.pt')
-    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run15/model_best.pt', version='v1c')
-    # Use 3 and 4?
-    # Get more images of wind turbine blades
-    # Idx 2, 4, 9
-    #annotation_idx = 9
-    annotation_idx = 11
-    #inferencer.test_timing(annotation_idx)
-    inferencer.run_test(annotation_idx)
+    inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run13/model_best.pt')
+    #inferencer = Inference(model_path='./src/hourglass_network/checkpoints/run15/model_best.pt', version='v1c')
+    # Use network 3 and 4 + 13
+    annotation_idx = 15
+    inferencer.test_timing(annotation_idx)
+    #inferencer.run_test(annotation_idx)
 
 if __name__ == "__main__":
     main()
