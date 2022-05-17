@@ -211,8 +211,12 @@ def create_input_img(kps, img_name, test=False, apply_augmentation=False, sigma_
     # Random affine transform applied to input_img/prior (10 pixels max)
     #sx = 10./img.shape[1]
     #sy = 10./img.shape[0]
-    sx = 0.1
-    sy = 0.1
+    if not test:
+        sx = 0.1
+        sy = 0.1
+    else:
+        sx = 0.0
+        sy = 0.0
     transform = transforms.RandomAffine(degrees=2, translate=(sx, sy))
     
     # Data variables
@@ -289,18 +293,19 @@ def show_keypoints_on_img(kps, img, show=False):
     for kp in kps:
         if kp[2].find('tmp') == -1:
             cv2.circle(img, kp[:2], 3, color_dict_bgr.get(kp[2]), -1)
-        else:
-            show = True
+        #else:
+        #    show = True
     # Keypoints are sorted
     # tower_bottom --> tower_top
-    cv2.line(img, kps[0][:2], kps[1][:2], (255,0,0), 2)
+    cv2.line(img, kps[0][:2], kps[1][:2], (1,0,0), 2)
     # tower_top --> wing_center
-    cv2.line(img, kps[1][:2], kps[2][:2], (0, 255, 0), 2)
+    cv2.line(img, kps[1][:2], kps[2][:2], (0, 1, 0), 2)
     # wing_center --> wing_tips
-    cv2.line(img, kps[2][:2], kps[3][:2], (0, 0, 255), 2)
-    cv2.line(img, kps[2][:2], kps[4][:2], (0, 0, 255), 2)
-    cv2.line(img, kps[2][:2], kps[5][:2], (0, 0, 255), 2)
+    cv2.line(img, kps[2][:2], kps[3][:2], (0, 0, 1), 2)
+    cv2.line(img, kps[2][:2], kps[4][:2], (0, 0, 1), 2)
+    cv2.line(img, kps[2][:2], kps[5][:2], (0, 0, 1), 2)
     if show:
+        print('Why are we here?')
         cv2.imshow('Image', img)
         cv2.waitKey(0)
         
