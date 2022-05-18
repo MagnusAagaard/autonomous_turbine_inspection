@@ -8,6 +8,7 @@ from mavros_msgs.msg import State
 from mavros_msgs.srv import CommandBool, SetMode, CommandTOL
 from math import sqrt, pi, atan2
 import numpy as np
+from copy import copy
 
 #from tf.transformations import quaternion_from_euler
 from skeletal_turbine_model import SkeletalTurbineModel
@@ -22,7 +23,7 @@ class DroneControl:
         self.state = State()
         self.home_position = None
         self.current_position = PoseStamped()
-        self.altitude = 65
+        self.altitude = 120
         self.stm = None
         self.est_offset = None
         # Setup stuff
@@ -370,9 +371,19 @@ class DroneControl:
                 self.publish_wp_and_sleep(current_wp)
                 
         self.pause_pose_estimator()
-        rospy.loginfo('Done state reached..')
-        while True:
+        rospy.loginfo('Done state reached.. Returning to home')
+        current_wp.pose.position.z = self.stm.h + self.stm.b + 5
+        while self.distance_to_target(current_wp, include_z=True) > 2.0:
             self.publish_wp_and_sleep(current_wp)
+        home = copy(self.home_position)
+        home.pose.position.x = 0.0
+        home.pose.position.y = 0.0
+        home.pose.position.z = self.stm.h + self.stm.b + 5
+        self.fly_to_wp_and_wait(home)
+        home.pose.position.z = -1.0
+        rospy.loginfo('Landing..')
+        while True:
+            self.publish_wp_and_sleep(home)
                 
     def pause_pose_estimator(self):
         self.toggle_pose_estimator_pub.publish(Bool(data=False))
