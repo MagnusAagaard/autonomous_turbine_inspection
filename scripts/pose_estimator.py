@@ -229,7 +229,8 @@ class PoseEstimator:
                     self.last_optimization_time = rospy.Time.now()
                     #self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
                 for pt in new_kps:
-                    cv2.circle(input_img, (int(pt[0]), int(pt[1])), 3, (0,0,255), 1)
+                    cv2.circle(drone_img, (int(pt[0]), int(pt[1])), 4, (255,0,255), 1)
+                    #cv2.circle(input_img, (int(pt[0]), int(pt[1])), 4, (255,0,255), 1)
         
         if self.n_frames_added >= self.n_frames_for_pose_graph:
             self._publish_pose_offset()
@@ -237,6 +238,7 @@ class PoseEstimator:
             # Save images during inspection
             cv2.imwrite(f'/home/magnus/master_thesis/inspections/{self.img_num}.png', clean_img)
             cv2.imwrite(f'/home/magnus/master_thesis/inspections/{self.img_num}_poses.png', drone_img)
+            #cv2.imwrite(f'/home/magnus/master_thesis/inspections/{self.img_num}_keypoints.png', input_img)
             if self.img_num > 0:
                 # Save true poses as txt file
                 tx = self.true_pose.position.x
@@ -297,7 +299,7 @@ class PoseEstimator:
             self.n_frames_added = 0
         
         cv2.imshow('Drone cam', drone_img)
-        cv2.imshow('Pose cam', input_img)
+        #cv2.imshow('Pose cam', input_img)
         cv2.waitKey(1)
 
     def _pose_cb(self, pose_msg):
