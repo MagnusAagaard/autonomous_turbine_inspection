@@ -453,9 +453,9 @@ class PoseGraphOptimization:
         #print('num vertices:', len(optimizer.vertices()))
         #print('num edges:', len(optimizer.edges()))
 
-        print('Performing full optimization:')
+        print('Performing full optimization..')
         optimizer.initialize_optimization()
-        optimizer.set_verbose(True)
+        optimizer.set_verbose(False)
         optimizer.optimize(20)
         #optimizer.save("optmization.g2o")
         
