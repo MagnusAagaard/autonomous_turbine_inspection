@@ -246,13 +246,13 @@ class SkeletalTurbineModel:
                 img_pts_error[i,:] = point[:2]
             # Show results
             for u, v in img_pts_error:
-                cv2.circle(img, (int(u), int(v)), 5, (0,255,0), 1)
-                cv2.circle(img, (int(u), int(v)), int(search_radius), (0,255,0), 1)
+                cv2.circle(img, (int(u), int(v)), 5, (0,0,255), 1)
+                cv2.circle(img, (int(u), int(v)), int(search_radius), (0,0,255), 1)
             for i in range(2):
-                cv2.line(img, (int(img_pts_error[i,0]), int(img_pts_error[i,1])), (int(img_pts_error[i+1,0]), int(img_pts_error[i+1,1])), (0,255,0), 1)
-            cv2.line(img, (int(img_pts_error[2,0]), int(img_pts_error[2,1])), (int(img_pts_error[3,0]), int(img_pts_error[3,1])), (0,255,0), 1)
-            cv2.line(img, (int(img_pts_error[2,0]), int(img_pts_error[2,1])), (int(img_pts_error[4,0]), int(img_pts_error[4,1])), (0,255,0), 1)
-            cv2.line(img, (int(img_pts_error[2,0]), int(img_pts_error[2,1])), (int(img_pts_error[5,0]), int(img_pts_error[5,1])), (0,255,0), 1)
+                cv2.line(img, (int(img_pts_error[i,0]), int(img_pts_error[i,1])), (int(img_pts_error[i+1,0]), int(img_pts_error[i+1,1])), (0,0,255), 1)
+            cv2.line(img, (int(img_pts_error[2,0]), int(img_pts_error[2,1])), (int(img_pts_error[3,0]), int(img_pts_error[3,1])), (0,0,255), 1)
+            cv2.line(img, (int(img_pts_error[2,0]), int(img_pts_error[2,1])), (int(img_pts_error[4,0]), int(img_pts_error[4,1])), (0,0,255), 1)
+            cv2.line(img, (int(img_pts_error[2,0]), int(img_pts_error[2,1])), (int(img_pts_error[5,0]), int(img_pts_error[5,1])), (0,0,255), 1)
         
         # For init point model
         P = K @ cam_pose
@@ -339,13 +339,13 @@ class SkeletalTurbineModel:
             img_pts_offset[i,:] = point[:2]
         # Show results
         for u, v in img_pts_offset:
-            cv2.circle(img, (int(u), int(v)), 5, (0,0,255), 1)
-            cv2.circle(img, (int(u), int(v)), int(search_radius), (0,0,255), 1)
+            cv2.circle(img, (int(u), int(v)), 5, (0,255,0), 1)
+            cv2.circle(img, (int(u), int(v)), int(search_radius), (0,255,0), 1)
         for i in range(2):
-            cv2.line(img, (int(img_pts_offset[i,0]), int(img_pts_offset[i,1])), (int(img_pts_offset[i+1,0]), int(img_pts_offset[i+1,1])), (0,0,255), 1)
-        cv2.line(img, (int(img_pts_offset[2,0]), int(img_pts_offset[2,1])), (int(img_pts_offset[3,0]), int(img_pts_offset[3,1])), (0,0,255), 1)
-        cv2.line(img, (int(img_pts_offset[2,0]), int(img_pts_offset[2,1])), (int(img_pts_offset[4,0]), int(img_pts_offset[4,1])), (0,0,255), 1)
-        cv2.line(img, (int(img_pts_offset[2,0]), int(img_pts_offset[2,1])), (int(img_pts_offset[5,0]), int(img_pts_offset[5,1])), (0,0,255), 1)
+            cv2.line(img, (int(img_pts_offset[i,0]), int(img_pts_offset[i,1])), (int(img_pts_offset[i+1,0]), int(img_pts_offset[i+1,1])), (0,255,0), 1)
+        cv2.line(img, (int(img_pts_offset[2,0]), int(img_pts_offset[2,1])), (int(img_pts_offset[3,0]), int(img_pts_offset[3,1])), (0,255,0), 1)
+        cv2.line(img, (int(img_pts_offset[2,0]), int(img_pts_offset[2,1])), (int(img_pts_offset[4,0]), int(img_pts_offset[4,1])), (0,255,0), 1)
+        cv2.line(img, (int(img_pts_offset[2,0]), int(img_pts_offset[2,1])), (int(img_pts_offset[5,0]), int(img_pts_offset[5,1])), (0,255,0), 1)
         
         if show_img:
             cv2.imshow('Projected point model', img)
