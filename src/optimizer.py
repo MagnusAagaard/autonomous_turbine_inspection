@@ -253,8 +253,8 @@ class PoseGraphOptimization:
         pose2 = g2o.SE3Quat(R2, t2)
         # Relative transformation between pose 1 and 2 in cam_frame 
         Tij = pose2*pose1.inverse()
-        print(f't before: {Tij.translation()}')
-        print(f'Rotation M: {utils.quarternion_to_rotation_matrix_g2o(Tij.rotation())}')
+        #print(f't before: {Tij.translation()}')
+        #print(f'Rotation M: {utils.quarternion_to_rotation_matrix_g2o(Tij.rotation())}')
         return Tij
     
     def calculate_relative_pose(self, cam1, cam2):
@@ -306,7 +306,7 @@ class PoseGraphOptimization:
         ret[:3,3] = offset.translation()
         # Get in world frame
         #ret = np.linalg.inv(ret)
-        print(f'Offset estimate: {ret}')
+        #print(f'Offset estimate: {ret}')
         return ret
         
     def get_relative_pose_offset(self):
