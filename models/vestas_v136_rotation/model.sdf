@@ -24,8 +24,8 @@
 
     <!-- Wings -->
     <link name='wings'>
-      <!-- Change wing rotation here as rotation around x-axis -->
-      <pose>-6.1541 -0.170453 71.7424 0.5235 0 0</pose>
+      <!-- Change wing rotation here as rotation around x-axis. NOTE: +pi/2 compared to v52 -->
+      <pose>-7.17986 -0.07363 127.91975 2.094 0 0</pose>
       <collision name="wings_collision">
         <pose>0 0 0 0 0 0</pose>
         <geometry>
