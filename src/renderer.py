@@ -10,7 +10,14 @@ import timeit
 from PIL import Image
 
 class Renderer:
-    def __init__(self, tower, wings):
+    def __init__(self, version='v52'):
+        self.version = version
+        if self.version == 'v52':
+            tower = '/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_tower.stl'
+            wings = '/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_wings.stl'
+        elif self.version == 'v136':
+            tower = '/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v136_rotation/meshes/vestas_v136_tower.stl'
+            wings = '/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v136_rotation/meshes/vestas_v136_wings.stl'
         self.__setup_renderer(tower, wings)
         
     def __setup_renderer(self, tower, wings):
@@ -54,8 +61,12 @@ class Renderer:
         # If tower heading is rotated (rotation around z) both wings and tower should rotate
         Rz_wings = utils.get_rotation_matrix('z', pose_estimate[4]/180*np.pi)
         Rz_tower = Rz_wings
-        Rx_wings = utils.get_rotation_matrix('x', (pose_estimate[3]/180*np.pi))
-        wings_pose[:3, 3] = Rz_wings @ [-6.1541, -0.170453, 71.7424]
+        if self.version == 'v52':
+            Rx_wings = utils.get_rotation_matrix('x', (pose_estimate[3]/180*np.pi))
+            wings_pose[:3, 3] = Rz_wings @ [-6.1541, -0.170453, 71.7424]
+        elif self.version == 'v136':
+            Rx_wings = utils.get_rotation_matrix('x', (pose_estimate[3]/180*np.pi + np.pi/2))
+            wings_pose[:3, 3] = Rz_wings @ [-7.17986, -0.07363, 127.91975]
         wings_pose[:3,:3] = Rz_wings @ Rx_wings @ wings_pose[:3,:3]
         tower_pose[:3,:3] = Rz_wings @ tower_pose[:3,:3]
         cam_pose[:3, 3] = pose_estimate[:3]
@@ -72,11 +83,11 @@ class Renderer:
         return color
 
 def main():
-    renderer = Renderer(tower='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_tower.stl', 
-                        wings='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
+    renderer = Renderer(version='v136')
+    #template = renderer.offscreen_render([-100, 0, 65, 0, 45])
+    template = renderer.offscreen_render([-100, 0, 127.5, 0, 45])
     #renderer.render_and_show()
     #template = Image.fromarray(renderer.offscreen_render([-100, 0, 65, 30, 45]))
-    template = renderer.offscreen_render([-100, 0, 75, -29+180, -39+180])
     #template.save('/home/magnus/template.pdf')
     #cv2.imwrite('/home/magnus/template.pdf', template)
     cv2.imshow('Template', template)

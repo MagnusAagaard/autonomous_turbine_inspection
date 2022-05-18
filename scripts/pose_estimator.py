@@ -54,8 +54,8 @@ class PoseEstimator:
         self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run13/model_best.pt')
         #self.inferencer = Inference(model_path='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/src/hourglass_network/checkpoints/run14/model_best.pt', version='v1c')
         #TODO: Add this as a launch parameter
-        self.render = Renderer(tower='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_tower.stl', 
-                               wings='/home/magnus/master_thesis/catkin_ws/src/autonomous_turbine_inspection/models/vestas_v52_rotation/meshes/vestas_v52_wings.stl')
+        #self.render = Renderer(version='v52')
+        self.render = Renderer(version='v136')
         #self.stm = SkeletalTurbineModel(c=(360, 0), h=71.74-8, omega=np.pi+np.deg2rad(45), phi=np.pi/2)
         self.optimizer = PoseGraphOptimization(camera_matrix=self.K)
         #self.three_dim_viewport = Display3D()
@@ -93,7 +93,7 @@ class PoseEstimator:
         # Wind turbine located directly in front in the middle of the image with wings oriented
         init_x = -estimated_dist
         init_y = 0
-        init_z = 74
+        init_z = 127
         init_roll = 20
         init_yaw = 0
         init_est = [init_x, init_y, init_z, init_roll, init_yaw]
@@ -197,7 +197,7 @@ class PoseEstimator:
                 R,t = utils.get_camera_pose_from_pose_msg(self.pose)
                 cam_pose = np.column_stack((R,t))
                 pose_error = copy(self.pose)
-                pose_error.pose.position.z -= 1
+                pose_error.pose.position.z -= 2
                 Rerr,terr = utils.get_camera_pose_from_pose_msg(pose_error)
                 cam_pose_with_error = np.column_stack((Rerr,terr))
                 
@@ -217,17 +217,19 @@ class PoseEstimator:
                 new_kps = self.process_inference_output(kps, lines_divided_2d, output, search_radius, search_dist, input_img, use_line_fit=False)
                 
                 if (rospy.Time.now() - self.launch_time) > self.time_before_running_optimization and (rospy.Time.now() - self.last_optimization_time) > self.time_between_optimizations:
-                    cam = Camera(R=Rerr, t=terr)
-                    cam = self.optimizer.add_camera(cam)
-                    self.optimizer.create_observations(new_kps, cam.camera_id)
-                    #print(f'Point model: {self.stm.point_model}')
-                    self.optimizer.optimize()
+                    if self.n_frames_added == 0:
+                        cam = Camera(R=Rerr, t=terr)
+                        cam = self.optimizer.add_camera(cam)
+                        self.optimizer.create_observations(new_kps, cam.camera_id)
+                        #print(f'Point model: {self.stm.point_model}')
+                        self.optimizer.optimize()
+                        
+                        # Use current pose estimate offset from optimizer
+                        self.est_pose_offset = self.optimizer.get_relative_pose_offset_new()
+                        self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
+                        self.last_optimization_time = rospy.Time.now()
+                        #self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
                     self.n_frames_added += 1
-                    # Use current pose estimate offset from optimizer
-                    self.est_pose_offset = self.optimizer.get_relative_pose_offset_new()
-                    self.stm.cam_pose_from_optimizer = self.optimizer.cameras[-1].pose()[:3,:]
-                    self.last_optimization_time = rospy.Time.now()
-                    #self.three_dim_viewport.set_points_to_draw(self.optimizer.points, self.optimizer.cameras)
                 for pt in new_kps:
                     cv2.circle(drone_img, (int(pt[0]), int(pt[1])), 4, (255,0,255), 1)
                     #cv2.circle(input_img, (int(pt[0]), int(pt[1])), 4, (255,0,255), 1)

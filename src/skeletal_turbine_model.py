@@ -8,7 +8,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from utils import get_rotation_matrix, get_rotation_matrix_from_world_to_camera_frame, convert_pose_to_camera_frame
 
 class SkeletalTurbineModel:
-    def __init__(self, c=(0,0), h=71.74-8, omega=np.pi-np.pi/4, r=5.16, phi=0, b=35.1):
+    #def __init__(self, c=(0,0), h=71.74-8, omega=np.pi-np.pi/4, r=5.16, phi=0, b=35.1):
+    def __init__(self, c=(0,0), h=127-8, omega=np.pi-np.pi/4, r=7.4, phi=0, b=72.5):
         # Init
         self.c = c          # (x,y) location of turbine tower base
         self.h = h          # Height of turbine tower (71.74m)
@@ -191,8 +192,8 @@ class SkeletalTurbineModel:
             dxyz = mag/steps
             #NOTE: For error test
             if waypoints:
-                line[0][2] += 1
-                line[1][2] += 1
+                line[0][2] += 2
+                line[1][2] += 2
             unit_vector = (line[1]-line[0])/mag
             line_divided = []
             for j in range(1,steps+1):
