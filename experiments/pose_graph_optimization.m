@@ -1,8 +1,9 @@
 % Pose graph optimization experiment
 point_model = readmatrix('pose_graph_optimization/point_model.txt');
-true_poses = readmatrix('pose_graph_optimization/true_poses.txt');
-offset_poses = readmatrix('pose_graph_optimization/without_offset_poses.txt');
 wps = readmatrix('pose_graph_optimization/inspection_waypoints.txt');
+true_poses = readmatrix('pose_graph_optimization/1m_error5/true_poses.txt');
+offset_poses = readmatrix('pose_graph_optimization/1m_error5/without_offset_poses.txt');
+
 
 figure(1)
 hold on;
@@ -15,7 +16,7 @@ plot3(true_poses(:,1),true_poses(:,2),true_poses(:,3),'g-*')
 plot3(offset_poses(:,1),offset_poses(:,2),offset_poses(:,3),'r-*')
 plot3(wps(:,1), wps(:,2), wps(:,3),'b*')
 
-n = 7;
+n = 42;
 % True poses is our true pose (offset by estimating offset during
 % inspection)
 sum_error_true_poses = sum(abs(wps(1:n,:) - true_poses(1:n,:)))
