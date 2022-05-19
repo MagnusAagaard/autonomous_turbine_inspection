@@ -328,7 +328,7 @@ class DroneControl:
                     rospy.loginfo('Init pose obtained')
                     self.model_lines = self.stm.subdivide_lines(waypoints=True)
                     # Get perpendicular point at X distance
-                    self.wps = self.get_wps_from_model_lines(self.model_lines[2:])
+                    self.wps = self.get_wps_from_model_lines(self.model_lines[2:], dist=20)
                     #for i, step in enumerate(self.wps):
                     #    for pt in step:
                     #        if i % 3 != 1:
