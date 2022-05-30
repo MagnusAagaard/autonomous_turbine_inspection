@@ -93,7 +93,7 @@ class PoseEstimator:
         # Wind turbine located directly in front in the middle of the image with wings oriented
         init_x = -estimated_dist
         init_y = 0
-        init_z = 127
+        init_z = 130
         init_roll = 20
         init_yaw = 0
         init_est = [init_x, init_y, init_z, init_roll, init_yaw]
