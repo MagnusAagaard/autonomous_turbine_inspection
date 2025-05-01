@@ -2,6 +2,16 @@
 
 ROS package for performing autonomous wind turbine inspections. The package is build for ROS melodic on Ubuntu 18.04 with Python 3.6.9
 
+Video examples can be found here:
+
+**Veastas V52**
+
+[![Vestas V52](http://img.youtube.com/vi/7VDuXnMXT8k/0.jpg)](http://www.youtube.com/watch?v=7VDuXnMXT8k "Veastas V52")
+
+**Vestas V136**
+
+[![Vestas V136](http://img.youtube.com/vi/lN229-S1NfE/0.jpg)](http://www.youtube.com/watch?v=lN229-S1NfE "Veastas V136")
+
 # Setup
 First ensure ROS Melodic is installed: ```sudo apt-get install ros-melodic-desktop-full```
 
